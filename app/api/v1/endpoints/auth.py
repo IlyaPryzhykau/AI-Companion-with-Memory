@@ -17,7 +17,8 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 def sign_up(payload: SignUpRequest, db: Session = Depends(get_db_session)) -> UserResponse:
     """Register a new user."""
 
-    existing_user = db.execute(select(User).where(User.email == payload.email)).scalar_one_or_none()
+    normalized_email = payload.email.lower().strip()
+    existing_user = db.execute(select(User).where(User.email == normalized_email)).scalar_one_or_none()
     if existing_user:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -25,7 +26,7 @@ def sign_up(payload: SignUpRequest, db: Session = Depends(get_db_session)) -> Us
         )
 
     user = User(
-        email=payload.email.lower().strip(),
+        email=normalized_email,
         password_hash=hash_password(payload.password),
     )
     db.add(user)

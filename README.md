@@ -535,6 +535,7 @@ python -m venv venv
 venv\Scripts\activate
 pip install -r requirements.txt
 copy .env.example .env
+alembic upgrade head
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
@@ -550,6 +551,12 @@ Auth endpoints:
 POST /api/v1/auth/signup
 POST /api/v1/auth/login
 GET /api/v1/auth/me
+```
+
+Chat endpoint:
+
+```text
+POST /api/v1/chat
 ```
 
 ## Development Rules
