@@ -528,6 +528,22 @@ Default PostgreSQL port for this project is:
 5440
 ```
 
+## Backend Quick Start
+
+```bash
+python -m venv venv
+venv\Scripts\activate
+pip install -r requirements.txt
+copy .env.example .env
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+Health check endpoint:
+
+```text
+GET /api/v1/health
+```
+
 ## Development Rules
 
 Project-wide engineering rules are documented in [CONTRIBUTING.md](CONTRIBUTING.md).
