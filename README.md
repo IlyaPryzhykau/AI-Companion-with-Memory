@@ -518,6 +518,16 @@ chat endpoint
 LLM integration
 ```
 
+## Local Configuration
+
+Use `.env.example` as the baseline local configuration.
+
+Default PostgreSQL port for this project is:
+
+```text
+5440
+```
+
 ## Development Rules
 
 Project-wide engineering rules are documented in [CONTRIBUTING.md](CONTRIBUTING.md).
