@@ -2,35 +2,35 @@
 
 ## Overview
 
-AI Companion — это многопользовательский AI-ассистент с долговременной памятью, доступный через:
+AI Companion is a multi-user AI assistant with long-term memory, available through:
 
-- Web интерфейс
-- Telegram бот
-- (в будущем) голосовой интерфейс
+- Web interface
+- Telegram bot
+- (future) voice interface
 
-Ассистент умеет:
+The assistant can:
 
-- вести диалог
-- запоминать информацию о пользователе
-- извлекать релевантную память из прошлых разговоров
-- создавать напоминания
-- помогать пользователю учить английский
-- сохранять долгосрочный контекст взаимодействия
+- hold conversations
+- remember user information
+- retrieve relevant memory from past interactions
+- create reminders
+- help users practice English
+- maintain long-term interaction context
 
-Система построена как **AI backend + memory engine + integrations**.
+The system is built as **AI backend + memory engine + integrations**.
 
-Основная цель проекта — создать **персонального AI-ассистента, который развивается вместе с пользователем**.
+The main goal is to build a **personal AI assistant that evolves with each user over time**.
 
 ## Core Features
 
 ### 1) Chat Interface
 
-Пользователь может общаться с ассистентом через:
+Users can talk to the assistant via:
 
 - Web chat
 - Telegram bot
 
-Каждое сообщение проходит через pipeline:
+Message pipeline:
 
 ```text
 User message
@@ -48,11 +48,11 @@ Response
 
 ### 2) Long-term Memory
 
-Ассистент обладает долговременной памятью.
+The assistant includes long-term memory.
 
 #### Structured memory
 
-Факты о пользователе:
+User facts:
 
 ```text
 name
@@ -62,21 +62,21 @@ goals
 preferences
 ```
 
-Хранится в PostgreSQL.
+Stored in PostgreSQL.
 
 #### Semantic memory
 
-Фрагменты диалогов, сохраненные как embeddings.
+Conversation fragments stored as embeddings.
 
-Пример:
+Example:
 
 ```text
 User felt nervous before interview
 ```
 
-Хранится в Vector DB.
+Stored in a Vector DB.
 
-Используется для:
+Used for:
 
 ```text
 semantic recall
@@ -85,25 +85,25 @@ context enrichment
 
 #### Conversation summaries
 
-Старые диалоги суммаризируются для уменьшения контекста.
+Older conversations are summarized to reduce prompt context size.
 
 ### 3) Reminder System
 
-Ассистент может создавать напоминания.
+The assistant can create reminders.
 
-Пример:
+Example:
 
 ```text
 Remind me tomorrow at 10 to call recruiter
 ```
 
-Система:
+Flow:
 
-1. извлекает намерение
-2. создает reminder
-3. отправляет уведомление пользователю
+1. Extract intent
+2. Create reminder
+3. Deliver notification
 
-Напоминания могут приходить через:
+Notification channels:
 
 - Telegram
 - Web notification
@@ -111,19 +111,19 @@ Remind me tomorrow at 10 to call recruiter
 
 ### 4) Telegram Integration
 
-Пользователь может связать Telegram аккаунт.
+Users can link their Telegram account.
 
-Это позволяет:
+This enables:
 
-- писать ассистенту напрямую
-- получать напоминания
-- поддерживать постоянный контакт
+- direct messaging with the assistant
+- reminder delivery
+- continuous engagement
 
 ### 5) Multi-user Architecture
 
-Система поддерживает множество пользователей.
+The system supports many users.
 
-Каждый пользователь имеет:
+Each user has:
 
 ```text
 own chats
@@ -132,7 +132,7 @@ own reminders
 own assistant context
 ```
 
-Все данные привязаны к:
+All user-scoped data is tied to:
 
 ```text
 user_id
@@ -140,18 +140,18 @@ user_id
 
 ### 6) English Practice Mode (future feature)
 
-Ассистент может работать как **AI English companion**.
+The assistant can run as an **AI English companion**.
 
-Функции:
+Capabilities:
 
-- диалог на английском
-- исправление ошибок
-- обучение через разговор
-- генерация карточек из диалогов
+- English conversation practice
+- grammar correction
+- learning through dialogue
+- vocabulary card generation from chats
 
 ## System Architecture
 
-### High Level Architecture
+### High-level Architecture
 
 ```text
                 Web UI
@@ -173,9 +173,7 @@ Telegram Bot ------ API Gateway
 
 ### API Server
 
-FastAPI backend.
-
-Отвечает за:
+FastAPI backend responsible for:
 
 - authentication
 - chat API
@@ -185,13 +183,13 @@ FastAPI backend.
 
 ### Memory Engine
 
-Отвечает за:
+Responsible for:
 
-- извлечение памяти
-- сохранение памяти
+- memory extraction
+- memory storage
 - semantic search
 
-Компоненты:
+Components:
 
 ```text
 memory extractor
@@ -202,7 +200,7 @@ memory consolidation
 
 ### Tool System
 
-Ассистент может вызывать инструменты:
+Assistant tools:
 
 ```text
 create_reminder
@@ -213,7 +211,7 @@ search_memory
 
 ### Scheduler
 
-Фоновый процесс для:
+Background processing for:
 
 ```text
 reminder dispatch
@@ -287,9 +285,9 @@ created_at
 
 ## Vector Database
 
-Используется для semantic search.
+Used for semantic search.
 
-Каждая запись:
+Per record:
 
 ```text
 embedding
@@ -298,7 +296,7 @@ user_id
 importance
 ```
 
-Поиск выполняется:
+Search logic:
 
 ```text
 vector search
@@ -308,7 +306,7 @@ vector search
 
 ## LLM Pipeline
 
-Каждый запрос проходит через:
+Every request runs through:
 
 ```text
 1 receive message
@@ -323,7 +321,7 @@ vector search
 
 ## Memory Processing Pipeline
 
-После каждого сообщения:
+After each message:
 
 ```text
 message
@@ -381,9 +379,9 @@ React
 
 ## Development Roadmap
 
-### Phase 1 — Core Backend
+### Phase 1: Core Backend
 
-Цель: создать базовый AI чат.
+Goal: build the base AI chat backend.
 
 Features:
 
@@ -395,9 +393,9 @@ message storage
 basic prompt system
 ```
 
-### Phase 2 — Memory System
+### Phase 2: Memory System
 
-Добавить память.
+Add memory support.
 
 Features:
 
@@ -408,9 +406,9 @@ semantic search
 prompt memory injection
 ```
 
-### Phase 3 — Telegram Bot
+### Phase 3: Telegram Bot
 
-Добавить Telegram интерфейс.
+Add Telegram interface.
 
 Features:
 
@@ -421,9 +419,9 @@ message routing
 notifications
 ```
 
-### Phase 4 — Reminder System
+### Phase 4: Reminder System
 
-Добавить напоминания.
+Add reminders.
 
 Features:
 
@@ -433,9 +431,9 @@ scheduler
 reminder notifications
 ```
 
-### Phase 5 — Memory Optimization
+### Phase 5: Memory Optimization
 
-Добавить:
+Add:
 
 ```text
 memory consolidation
@@ -444,9 +442,9 @@ memory cleanup
 conversation summarization
 ```
 
-### Phase 6 — English Mode
+### Phase 6: English Mode
 
-Добавить режим обучения английскому.
+Add English learning mode.
 
 Features:
 
@@ -456,9 +454,9 @@ conversation practice
 vocabulary cards
 ```
 
-### Phase 7 — Voice Interface
+### Phase 7: Voice Interface
 
-Добавить:
+Add:
 
 ```text
 speech to text
@@ -479,7 +477,7 @@ video conversation
 
 ## Project Goals
 
-Создать AI систему, которая:
+Build an AI system that:
 
 ```text
 remembers user context
@@ -489,7 +487,7 @@ works across platforms
 improves over time
 ```
 
-Проект должен быть:
+The project should be:
 
 ```text
 scalable
@@ -500,7 +498,7 @@ extensible
 
 ## Success Criteria
 
-Система считается успешной если:
+The system is successful when:
 
 ```text
 users return regularly
@@ -511,7 +509,7 @@ multi-platform communication works
 
 ## Next Step
 
-Начать реализацию с:
+Start implementation with:
 
 ```text
 FastAPI project skeleton
@@ -519,3 +517,7 @@ auth system
 chat endpoint
 LLM integration
 ```
+
+## Development Rules
+
+Project-wide engineering rules are documented in [CONTRIBUTING.md](CONTRIBUTING.md).
