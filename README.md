@@ -559,6 +559,12 @@ Chat endpoint:
 POST /api/v1/chat
 ```
 
+Run tests:
+
+```bash
+pytest
+```
+
 ## Development Rules
 
 Project-wide engineering rules are documented in [CONTRIBUTING.md](CONTRIBUTING.md).
