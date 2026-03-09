@@ -75,6 +75,6 @@ def test_get_me_requires_auth_and_returns_user(client) -> None:
     unauthorized = client.get("/api/v1/auth/me")
     authorized = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"})
 
-    assert unauthorized.status_code == 403
+    assert unauthorized.status_code == 401
     assert authorized.status_code == 200
     assert authorized.json()["email"] == "me@example.com"

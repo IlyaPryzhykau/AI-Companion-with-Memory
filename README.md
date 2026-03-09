@@ -539,6 +539,26 @@ alembic upgrade head
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
+## Docker Quick Start
+
+```bash
+docker compose up --build
+```
+
+Services:
+
+```text
+API: http://localhost:8000
+PostgreSQL: localhost:5440
+Redis: localhost:6379
+```
+
+Stop services:
+
+```bash
+docker compose down
+```
+
 Health check endpoint:
 
 ```text
