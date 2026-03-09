@@ -4,6 +4,9 @@ from fastapi import FastAPI
 
 from app.api.v1.router import api_router
 from app.core.config import get_settings
+from app.db.base import Base
+from app.db.session import engine
+import app.models  # noqa: F401
 
 
 def create_app() -> FastAPI:
@@ -19,6 +22,13 @@ def create_app() -> FastAPI:
     )
     app.state.settings = settings
     app.include_router(api_router)
+
+    @app.on_event("startup")
+    def startup_create_tables() -> None:
+        """Create database tables for the current bootstrap stage."""
+
+        Base.metadata.create_all(bind=engine)
+
     return app
 
 

@@ -28,6 +28,11 @@ class Settings(BaseSettings):
     redis_db: int = Field(default=0, alias="REDIS_DB")
 
     openai_api_key: str = Field(default="", alias="OPENAI_API_KEY")
+    jwt_secret_key: str = Field(default="change-me-in-production", alias="JWT_SECRET_KEY")
+    jwt_algorithm: str = Field(default="HS256", alias="JWT_ALGORITHM")
+    jwt_access_token_expire_minutes: int = Field(
+        default=60, alias="JWT_ACCESS_TOKEN_EXPIRE_MINUTES"
+    )
 
     model_config = SettingsConfigDict(
         env_file=".env",

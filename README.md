@@ -544,6 +544,14 @@ Health check endpoint:
 GET /api/v1/health
 ```
 
+Auth endpoints:
+
+```text
+POST /api/v1/auth/signup
+POST /api/v1/auth/login
+GET /api/v1/auth/me
+```
+
 ## Development Rules
 
 Project-wide engineering rules are documented in [CONTRIBUTING.md](CONTRIBUTING.md).
