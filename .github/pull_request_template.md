@@ -1,43 +1,72 @@
 ## Summary
 
-Describe the goal of this PR in 2-4 sentences.
+Briefly describe what this PR changes and why (2-5 sentences).
+
+| Item | Details |
+| --- | --- |
+| Problem | What issue does this PR solve? |
+| Solution | How is it solved at a high level? |
+| User impact | What changes for end users or internal teams? |
+| Risk level | Low / Medium / High |
 
 ## Scope
 
-- In scope:
-- Out of scope:
-
-## Changes
-
-List the main implementation changes.
-
+### In scope
 - 
+
+### Out of scope
+- 
+
+## Change Details
+
+| Area | Change | Why |
+| --- | --- | --- |
+| Backend/API |  |  |
+| Database |  |  |
+| Infra/Config |  |  |
+| Frontend (if applicable) |  |  |
+| Tests |  |  |
 
 ## API and Data Impact
 
-Describe any API contract, schema, migration, or config impact.
+### API Contract
+- Endpoint(s):
+- Request/response changes:
+- Backward compatibility: Yes / No
 
-- API changes:
-- DB changes:
-- Env/config changes:
+### Database
+- Migration required: Yes / No
+- Migration file(s):
+- Data backfill required: Yes / No
+- Downtime expected: Yes / No
 
-## Testing
+### Environment and Config
+- New env vars:
+- Updated env vars:
+- Secret changes:
 
-Describe what was tested and how.
+## Testing Evidence
 
-- Automated tests:
-- Manual checks:
+### Automated tests
+| Test Type | Command | Result |
+| --- | --- | --- |
+| Unit |  | Pass / Fail / N/A |
+| Integration |  | Pass / Fail / N/A |
+| E2E |  | Pass / Fail / N/A |
 
-## Risks
+### Manual validation
+| Scenario | Steps | Result |
+| --- | --- | --- |
+| Happy path |  | Pass / Fail / N/A |
+| Edge case(s) |  | Pass / Fail / N/A |
 
-List known risks and mitigation.
+## Risks and Mitigations
 
-- Risk:
-- Mitigation:
+| Risk | Impact | Mitigation | Owner |
+| --- | --- | --- | --- |
+|  |  |  |  |
 
 ## Rollout Plan
-
-Explain how this should be deployed safely.
 
 1. 
 2. 
@@ -45,16 +74,33 @@ Explain how this should be deployed safely.
 
 ## Rollback Plan
 
-Explain how to rollback if needed.
-
 1. 
 2. 
+3. 
+
+## Observability
+
+- Logs:
+- Metrics:
+- Alerts/dashboards:
+
+## Screenshots / Examples (if applicable)
+
+Attach screenshots, request/response snippets, or before/after examples.
 
 ## Checklist
 
+### Required
+- [ ] Title clearly describes the change
+- [ ] PR is linked to issue/task (if applicable)
 - [ ] Code follows `CONTRIBUTING.md`
 - [ ] Comments/docstrings are in English
 - [ ] Tests added/updated for behavior changes
-- [ ] Migrations included for schema changes
-- [ ] Documentation updated (`README.md` / relevant docs)
 - [ ] No secrets or sensitive data introduced
+
+### If applicable
+- [ ] Migrations included for schema changes
+- [ ] Backfill plan documented
+- [ ] Rollout and rollback steps validated
+- [ ] Documentation updated (`README.md` / relevant docs)
+- [ ] API contract/versioning changes documented
