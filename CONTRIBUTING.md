@@ -89,3 +89,19 @@ This document defines coding standards for this repository and for AI coding age
 - Make minimal, targeted changes.
 - Explain assumptions in PR descriptions.
 - If requirements are unclear, document open questions before large edits.
+- Before any `git push`, ask for explicit user confirmation.
+- Do not push automatically after local edits, tests, or commits.
+- After first push of a new feature/fix branch, create a PR automatically unless user says not to.
+- PR description must be detailed and include:
+  - scope,
+  - implementation summary,
+  - test evidence,
+  - rollout/rollback notes (if relevant),
+  - known limitations.
+- PR description must include a checklist and mark each item as done/not applicable/pending.
+- If migration/backfill/API contract changes are not present, explicitly mark those checklist items as not applicable.
+- After each meaningful fix batch, post a PR comment summarizing:
+  - what was fixed,
+  - which files changed,
+  - which tests were run and results.
+- While processing review feedback, prioritize the latest review comment unless the user asks otherwise.
