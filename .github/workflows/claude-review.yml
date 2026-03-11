@@ -8,7 +8,7 @@ on:
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
   FAIL_ON_CHANGES_REQUIRED: "false"
-  REVIEW_MODEL: "claude-sonnet-4-20250514"
+  REVIEW_MODEL: "claude-3-5-sonnet-20241022"
 
 concurrency:
   group: claude-review-${{ github.event.pull_request.number }}

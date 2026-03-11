@@ -10,9 +10,24 @@ from sqlalchemy.exc import DBAPIError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.models.memory import UserMemory
-from app.services.vector_store import VectorSearchResult, get_vector_store
+from app.services.vector_store import (
+    SUPPORTED_EMBEDDING_DIMENSIONS,
+    JsonVectorStore,
+    VectorSearchResult,
+    get_vector_store,
+)
 
 logger = logging.getLogger(__name__)
+
+
+def _resolve_vector_store():
+    """Resolve configured vector store with safe JSON fallback on misconfiguration."""
+
+    try:
+        return get_vector_store()
+    except ValueError as exc:
+        logger.warning("vector_store_config_invalid error=%s fallback=JsonVectorStore", exc)
+        return JsonVectorStore(dimensions=SUPPORTED_EMBEDDING_DIMENSIONS)
 
 STOP_WORDS = {
     "a",
@@ -108,7 +123,7 @@ def store_vector_memory(
 ) -> None:
     """Store a semantic memory chunk with optional embedding."""
 
-    vector_store = get_vector_store()
+    vector_store = _resolve_vector_store()
     savepoint = db.begin_nested()
     try:
         vector_store.store(
@@ -240,7 +255,7 @@ def build_memory_context(
 ) -> str:
     """Build ranked memory context for prompt assembly with budget limits."""
 
-    vector_store = get_vector_store()
+    vector_store = _resolve_vector_store()
     facts = db.execute(select(UserMemory).where(UserMemory.user_id == user_id)).scalars().all()
     semantic = vector_store.search(
         db=db,
