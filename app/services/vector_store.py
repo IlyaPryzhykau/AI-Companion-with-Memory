@@ -6,7 +6,8 @@ import math
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
-from sqlalchemy import text
+from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
@@ -77,6 +78,7 @@ class JsonVectorStore:
         """Persist semantic memory with deterministic embedding payload."""
 
         computed_embedding = embedding or embed_text(text_value, dimensions=self.dimensions)
+        computed_embedding = self._validate_embedding(computed_embedding)
         db.add(
             VectorMemory(
                 user_id=user_id,
@@ -97,7 +99,14 @@ class JsonVectorStore:
         """Return top semantic memories ranked by cosine similarity."""
 
         query_embedding = embed_text(query, dimensions=self.dimensions)
-        items = db.query(VectorMemory).filter(VectorMemory.user_id == user_id).all()
+        candidate_limit = max(100, limit * 20)
+        items = (
+            db.query(VectorMemory)
+            .filter(VectorMemory.user_id == user_id)
+            .order_by(VectorMemory.created_at.desc())
+            .limit(candidate_limit)
+            .all()
+        )
 
         scored: list[VectorSearchResult] = []
         for item in items:
@@ -123,6 +132,15 @@ class JsonVectorStore:
         )
         return scored[:limit]
 
+    def _validate_embedding(self, embedding: list[float]) -> list[float]:
+        """Validate embedding dimensions for current backend configuration."""
+
+        if len(embedding) != self.dimensions:
+            raise ValueError(
+                f"Embedding dimension mismatch: expected {self.dimensions}, got {len(embedding)}."
+            )
+        return embedding
+
 
 class PgVectorStore(JsonVectorStore):
     """Vector backend using pgvector similarity on PostgreSQL."""
@@ -140,28 +158,25 @@ class PgVectorStore(JsonVectorStore):
             return super().search(db, user_id, query, limit)
 
         query_embedding = embed_text(query, dimensions=self.dimensions)
-        vector_literal = "[" + ",".join(f"{value:.8f}" for value in query_embedding) + "]"
-        stmt = text(
-            """
-            SELECT
-                text,
-                importance,
-                created_at,
-                (1 - (embedding_vector <=> CAST(:query_vector AS vector))) AS similarity
-            FROM vector_memory
-            WHERE user_id = :user_id
-              AND embedding_vector IS NOT NULL
-            ORDER BY embedding_vector <=> CAST(:query_vector AS vector)
-            LIMIT :limit
-            """
+        distance_expr = VectorMemory.embedding_vector.cosine_distance(query_embedding)
+        stmt = (
+            select(
+                VectorMemory.text,
+                VectorMemory.importance,
+                VectorMemory.created_at,
+                (1 - distance_expr).label("similarity"),
+            )
+            .where(
+                VectorMemory.user_id == user_id,
+                VectorMemory.embedding_vector.is_not(None),
+            )
+            .order_by(distance_expr)
+            .limit(limit)
         )
 
         try:
-            rows = db.execute(
-                stmt,
-                {"user_id": user_id, "query_vector": vector_literal, "limit": limit},
-            ).mappings()
-        except Exception as exc:  # pragma: no cover - depends on PG runtime state
+            rows = db.execute(stmt).mappings()
+        except SQLAlchemyError as exc:  # pragma: no cover - depends on PG runtime state
             logger.warning(
                 "pgvector_search_failed user_id=%s error=%s fallback=json",
                 user_id,

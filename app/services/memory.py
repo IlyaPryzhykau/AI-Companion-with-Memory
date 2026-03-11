@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 
 from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.models.memory import UserMemory
@@ -108,13 +109,21 @@ def store_vector_memory(
     """Store a semantic memory chunk with optional embedding."""
 
     vector_store = get_vector_store()
-    vector_store.store(
-        db=db,
-        user_id=user_id,
-        text_value=text,
-        importance=importance,
-        embedding=embedding,
-    )
+    try:
+        vector_store.store(
+            db=db,
+            user_id=user_id,
+            text_value=text,
+            importance=importance,
+            embedding=embedding,
+        )
+    except (SQLAlchemyError, ValueError) as exc:
+        logger.warning(
+            "vector_store_write_failed user_id=%s backend=%s error=%s",
+            user_id,
+            type(vector_store).__name__,
+            f"{type(exc).__name__}: {exc}",
+        )
 
 
 def _safe_utc(dt: datetime | None) -> datetime:

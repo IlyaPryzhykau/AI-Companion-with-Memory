@@ -3,6 +3,7 @@
 from types import SimpleNamespace
 
 import pytest
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
@@ -87,7 +88,7 @@ def test_pgvector_store_falls_back_to_json_when_sql_fails(db_session: Session) -
             self.bind = SimpleNamespace(dialect=SimpleNamespace(name="postgresql"))
 
         def execute(self, *args, **kwargs):
-            raise RuntimeError("simulated pgvector SQL error")
+            raise OperationalError("select 1", {}, Exception("simulated pgvector SQL error"))
 
         def query(self, *args, **kwargs):
             return self._real.query(*args, **kwargs)

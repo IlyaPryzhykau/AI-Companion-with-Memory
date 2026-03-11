@@ -25,23 +25,23 @@ def upgrade() -> None:
         op.add_column("vector_memory", sa.Column("embedding_vector", sa.JSON(), nullable=True))
         return
 
-    op.execute("CREATE EXTENSION IF NOT EXISTS vector")
-    op.execute("ALTER TABLE vector_memory ADD COLUMN IF NOT EXISTS embedding_vector vector(64)")
     op.execute(
         """
-        UPDATE vector_memory
-        SET embedding_vector = embedding::text::vector
-        WHERE embedding IS NOT NULL
-          AND embedding_vector IS NULL
-          AND jsonb_typeof(embedding::jsonb) = 'array'
-          AND jsonb_array_length(embedding::jsonb) = 64
-          AND NOT EXISTS (
-              SELECT 1
-              FROM jsonb_array_elements(embedding::jsonb) AS elem
-              WHERE jsonb_typeof(elem) <> 'number'
-          )
+        DO $$
+        BEGIN
+            BEGIN
+                CREATE EXTENSION IF NOT EXISTS vector;
+            EXCEPTION
+                WHEN insufficient_privilege THEN
+                    RAISE NOTICE 'Skipping CREATE EXTENSION vector due to insufficient privileges';
+            END;
+        END $$;
         """
     )
+    op.execute("ALTER TABLE vector_memory ADD COLUMN IF NOT EXISTS embedding_vector vector(64)")
+
+    # Backfill from legacy JSON embeddings is intentionally deferred to a dedicated
+    # operational job to avoid long-running migration locks on large tables.
     op.execute(
         """
         DO $$
