@@ -21,6 +21,8 @@ class EmbeddingVector(TypeDecorator):
         """Select the most appropriate storage type per SQL dialect."""
 
         if dialect.name == "postgresql":
+            if self.dimensions <= 0 or self.dimensions > 2000:
+                raise ValueError("PostgreSQL vector dimensions must be in range 1..2000.")
             return dialect.type_descriptor(Vector(self.dimensions))
         return dialect.type_descriptor(JSON())
 

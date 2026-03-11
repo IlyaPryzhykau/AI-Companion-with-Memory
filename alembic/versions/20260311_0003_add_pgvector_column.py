@@ -38,36 +38,23 @@ def upgrade() -> None:
         END $$;
         """
     )
+    extension_installed = bind.execute(
+        sa.text("SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'vector')")
+    ).scalar_one()
+    if not extension_installed:
+        raise RuntimeError(
+            "pgvector extension is not installed. Install extension or grant permissions before migration."
+        )
+
     op.execute("ALTER TABLE vector_memory ADD COLUMN IF NOT EXISTS embedding_vector vector(64)")
 
     # Backfill from legacy JSON embeddings is intentionally deferred to a dedicated
     # operational job to avoid long-running migration locks on large tables.
-    op.execute(
-        """
-        DO $$
-        DECLARE vector_count BIGINT;
-        BEGIN
-            SELECT COUNT(*) INTO vector_count
-            FROM vector_memory
-            WHERE embedding_vector IS NOT NULL;
-
-            IF vector_count >= 1000 THEN
-                EXECUTE '
-                    CREATE INDEX IF NOT EXISTS ix_vector_memory_embedding_vector_ivfflat
-                    ON vector_memory
-                    USING ivfflat (embedding_vector vector_cosine_ops)
-                ';
-            END IF;
-        END $$;
-        """
-    )
+    # Index creation is intentionally deferred to a dedicated operational migration
+    # where CREATE INDEX CONCURRENTLY can be used without long write locks.
 
 
 def downgrade() -> None:
     """Drop pgvector embedding column from vector_memory table."""
-
-    bind = op.get_bind()
-    if bind.dialect.name == "postgresql":
-        op.execute("DROP INDEX IF EXISTS ix_vector_memory_embedding_vector_ivfflat")
 
     op.drop_column("vector_memory", "embedding_vector")

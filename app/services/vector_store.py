@@ -1,8 +1,8 @@
 """Vector storage and retrieval backends."""
 
 import hashlib
-import logging
 import math
+import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
@@ -34,6 +34,21 @@ def _normalize(values: list[float]) -> list[float]:
     if norm == 0:
         return values
     return [value / norm for value in values]
+
+
+def _ensure_safe_vector(values: list[float], expected_dimensions: int) -> list[float]:
+    """Validate vector payload before using it in DB similarity expressions."""
+
+    if len(values) != expected_dimensions:
+        raise ValueError(
+            f"Embedding dimension mismatch: expected {expected_dimensions}, got {len(values)}."
+        )
+    if not all(isinstance(value, float | int) for value in values):
+        raise ValueError("Embedding vector must contain numeric values.")
+    normalized = [float(value) for value in values]
+    if not all(math.isfinite(value) for value in normalized):
+        raise ValueError("Embedding vector contains non-finite values.")
+    return normalized
 
 
 def embed_text(text: str, dimensions: int = 64) -> list[float]:
@@ -157,7 +172,10 @@ class PgVectorStore(JsonVectorStore):
         if db.bind is None or db.bind.dialect.name != "postgresql":
             return super().search(db, user_id, query, limit)
 
-        query_embedding = embed_text(query, dimensions=self.dimensions)
+        query_embedding = _ensure_safe_vector(
+            embed_text(query, dimensions=self.dimensions),
+            expected_dimensions=self.dimensions,
+        )
         distance_expr = VectorMemory.embedding_vector.cosine_distance(query_embedding)
         stmt = (
             select(
