@@ -4,6 +4,10 @@ on:
   pull_request:
     types: [opened, reopened, synchronize, ready_for_review]
 
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
   pull-requests: write
@@ -21,25 +25,20 @@ jobs:
           fetch-depth: 0
 
       - name: Fetch base branch
-        run: |
-          git fetch origin "${{ github.base_ref }}" --depth=1
+        run: git fetch origin "${{ github.base_ref }}" --depth=1
 
       - name: Build diff
-        run: |
-          git diff --unified=3 "origin/${{ github.base_ref }}"...HEAD > pr.diff
+        run: git diff --unified=3 "origin/${{ github.base_ref }}"...HEAD > pr.diff
 
       - name: Trim diff
         run: |
           python - <<'PY'
           from pathlib import Path
 
-          diff_path = Path("pr.diff")
-          diff = diff_path.read_text(encoding="utf-8", errors="ignore")
-
+          diff = Path("pr.diff").read_text(encoding="utf-8", errors="ignore")
           max_chars = 120000
           if len(diff) > max_chars:
               diff = diff[:max_chars] + "\n\n[DIFF TRUNCATED]"
-
           Path("pr_trimmed.diff").write_text(diff, encoding="utf-8")
           PY
 
@@ -60,7 +59,21 @@ jobs:
           python - <<'PY'
           import os
           from pathlib import Path
+
           from anthropic import Anthropic
+
+          if not os.getenv("ANTHROPIC_API_KEY"):
+              text = (
+                  "DECISION: CHANGES_REQUIRED\n\n"
+                  "SUMMARY:\n"
+                  "- Missing `ANTHROPIC_API_KEY` GitHub secret.\n\n"
+                  "FINDINGS:\n"
+                  "- Add repository secret `ANTHROPIC_API_KEY` in "
+                  "Settings -> Secrets and variables -> Actions."
+              )
+              Path("review.txt").write_text(text, encoding="utf-8")
+              Path("review_decision.txt").write_text("CHANGES_REQUIRED", encoding="utf-8")
+              raise SystemExit(0)
 
           diff = Path("pr_trimmed.diff").read_text(encoding="utf-8", errors="ignore")
           pr_title = os.getenv("PR_TITLE", "")
@@ -94,25 +107,42 @@ jobs:
               f"Diff:\n{diff}\n"
           )
 
-          client = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+          try:
+              client = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+              response = client.messages.create(
+                  model="claude-sonnet-4-20250514",
+                  max_tokens=4096,
+                  temperature=0,
+                  messages=[{"role": "user", "content": prompt}],
+              )
+              text = "".join(
+                  block.text for block in response.content if getattr(block, "type", "") == "text"
+              ).strip()
+          except Exception as exc:
+              text = (
+                  "DECISION: CHANGES_REQUIRED\n\n"
+                  "SUMMARY:\n"
+                  "- Claude review request failed.\n\n"
+                  "FINDINGS:\n"
+                  f"- Anthropic API error: {type(exc).__name__}: {exc}"
+              )
 
-          response = client.messages.create(
-              model="claude-sonnet-4-5",
-              max_tokens=1800,
-              temperature=0,
-              messages=[
-                  {
-                      "role": "user",
-                      "content": prompt,
-                  }
-              ],
-          )
-
-          text = "".join(
-              block.text for block in response.content if getattr(block, "type", "") == "text"
-          ).strip()
+          if "DECISION: CHANGES_REQUIRED" in text:
+              decision = "CHANGES_REQUIRED"
+          elif "DECISION: APPROVED" in text:
+              decision = "APPROVED"
+          else:
+              text = (
+                  "DECISION: CHANGES_REQUIRED\n\n"
+                  "SUMMARY:\n"
+                  "- Claude output format was invalid.\n\n"
+                  "FINDINGS:\n"
+                  "- Reviewer output did not include a valid `DECISION` header."
+              )
+              decision = "CHANGES_REQUIRED"
 
           Path("review.txt").write_text(text, encoding="utf-8")
+          Path("review_decision.txt").write_text(decision, encoding="utf-8")
           PY
 
       - name: Post review comment to PR
@@ -121,10 +151,41 @@ jobs:
           script: |
             const fs = require('fs');
             const review = fs.readFileSync('review.txt', 'utf8');
+            const marker = '<!-- claude-review-comment -->';
+            const body = `## Claude review\n\n${review}\n\n${marker}`;
 
-            await github.rest.issues.createComment({
+            const comments = await github.paginate(github.rest.issues.listComments, {
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
-              body: `## Claude review\n\n${review}`
             });
+
+            const existing = comments.find((c) =>
+              c.user?.login === 'github-actions[bot]' && c.body?.includes(marker)
+            );
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
+
+      - name: Fail if review requires changes
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          decision = Path("review_decision.txt").read_text(encoding="utf-8").strip()
+          if decision == "CHANGES_REQUIRED":
+              raise SystemExit("Claude requested changes.")
+          PY
