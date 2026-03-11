@@ -47,6 +47,8 @@ def test_chat_stores_structured_and_vector_memory(client, db_session: Session) -
     assert any(item.key == "name" and "Alex" in item.value for item in structured)
     assert len(semantic) == 1
     assert semantic[0].text == "My name is Alex and I live in Berlin."
+    assert semantic[0].embedding is not None
+    assert semantic[0].embedding_vector is not None
 
 
 def test_chat_uses_retrieved_memory_in_follow_up_reply(client) -> None:

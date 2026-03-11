@@ -28,6 +28,8 @@ class Settings(BaseSettings):
     redis_db: int = Field(default=0, alias="REDIS_DB")
 
     openai_api_key: str = Field(default="", alias="OPENAI_API_KEY")
+    vector_backend: str = Field(default="json", alias="VECTOR_BACKEND")
+    vector_embedding_dimensions: int = Field(default=64, alias="VECTOR_EMBEDDING_DIMENSIONS")
     jwt_secret_key: str = Field(
         default="change-me-in-production-at-least-32-chars",
         alias="JWT_SECRET_KEY",
