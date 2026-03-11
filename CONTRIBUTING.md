@@ -41,6 +41,27 @@ This document defines coding standards for this repository and for AI coding age
 - Add or update tests for all behavior changes.
 - Cover success paths and important failure paths.
 - Keep tests deterministic and isolated.
+- Treat test coverage as a delivery requirement, not an optional follow-up.
+
+### Required Coverage by Change Type
+
+| Change Type | Required Tests | Notes |
+| --- | --- | --- |
+| Pure refactor (no behavior change) | Existing affected tests must pass | Explain why no new tests are needed in PR |
+| Business logic change | Unit tests for new branches + edge cases | Include at least one negative/failure case |
+| API endpoint change | Integration tests for request/response + auth/error paths | Cover contract compatibility expectations |
+| DB schema/migration change | Migration test/check + integration test on changed flow | Document rollback validation approach |
+| Retrieval/ranking/scoring logic | Deterministic tests for ranking order and tie behavior | Avoid flaky assertions and random inputs |
+| Bug fix | Regression test reproducing old failure | Regression test should fail before fix |
+| Config/feature-flag behavior | Tests for both enabled and disabled modes | If one mode is unavailable, state why |
+
+### Test Quality Bar
+
+- Tests for changed areas must pass locally before opening PR.
+- New logic must include at least one edge-case assertion.
+- If behavior depends on ordering/ranking, assert explicit order.
+- If behavior is user-scoped, include isolation tests by `user_id`.
+- If no test is added for a behavior change, PR must include a concrete justification.
 
 ## API and Data Contracts
 
