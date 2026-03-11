@@ -10,6 +10,8 @@ from collections.abc import Sequence
 import sqlalchemy as sa
 from alembic import op
 
+from app.db.types import EmbeddingVector
+
 # revision identifiers, used by Alembic.
 revision: str = "20260311_0003"
 down_revision: str | None = "20260310_0002"
@@ -46,7 +48,7 @@ def upgrade() -> None:
             "pgvector extension is not installed. Install extension or grant permissions before migration."
         )
 
-    op.execute("ALTER TABLE vector_memory ADD COLUMN IF NOT EXISTS embedding_vector vector(64)")
+    op.add_column("vector_memory", sa.Column("embedding_vector", EmbeddingVector(64), nullable=True))
 
     # Backfill from legacy JSON embeddings is intentionally deferred to a dedicated
     # operational job to avoid long-running migration locks on large tables.

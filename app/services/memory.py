@@ -109,16 +109,18 @@ def store_vector_memory(
     """Store a semantic memory chunk with optional embedding."""
 
     vector_store = get_vector_store()
+    savepoint = db.begin_nested()
     try:
-        with db.begin_nested():
-            vector_store.store(
-                db=db,
-                user_id=user_id,
-                text_value=text,
-                importance=importance,
-                embedding=embedding,
-            )
+        vector_store.store(
+            db=db,
+            user_id=user_id,
+            text_value=text,
+            importance=importance,
+            embedding=embedding,
+        )
+        savepoint.commit()
     except (SQLAlchemyError, ValueError) as exc:
+        savepoint.rollback()
         logger.warning(
             "vector_store_write_failed user_id=%s backend=%s error=%s",
             user_id,

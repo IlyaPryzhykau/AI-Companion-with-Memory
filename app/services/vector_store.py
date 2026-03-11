@@ -128,8 +128,6 @@ class JsonVectorStore:
             item_embedding = item.embedding
             if item_embedding is None:
                 item_embedding = embed_text(item.text, dimensions=self.dimensions)
-                item.embedding = item_embedding
-                item.embedding_vector = item_embedding
 
             similarity = cosine_similarity(query_embedding, item_embedding)
             scored.append(
@@ -172,29 +170,28 @@ class PgVectorStore(JsonVectorStore):
         if db.bind is None or db.bind.dialect.name != "postgresql":
             return super().search(db, user_id, query, limit)
 
-        query_embedding = _ensure_safe_vector(
-            embed_text(query, dimensions=self.dimensions),
-            expected_dimensions=self.dimensions,
-        )
-        distance_expr = VectorMemory.embedding_vector.cosine_distance(query_embedding)
-        stmt = (
-            select(
-                VectorMemory.text,
-                VectorMemory.importance,
-                VectorMemory.created_at,
-                (1 - distance_expr).label("similarity"),
-            )
-            .where(
-                VectorMemory.user_id == user_id,
-                VectorMemory.embedding_vector.is_not(None),
-            )
-            .order_by(distance_expr)
-            .limit(limit)
-        )
-
         try:
+            query_embedding = _ensure_safe_vector(
+                embed_text(query, dimensions=self.dimensions),
+                expected_dimensions=self.dimensions,
+            )
+            distance_expr = VectorMemory.embedding_vector.cosine_distance(query_embedding)
+            stmt = (
+                select(
+                    VectorMemory.text,
+                    VectorMemory.importance,
+                    VectorMemory.created_at,
+                    (1 - distance_expr).label("similarity"),
+                )
+                .where(
+                    VectorMemory.user_id == user_id,
+                    VectorMemory.embedding_vector.is_not(None),
+                )
+                .order_by(distance_expr)
+                .limit(limit)
+            )
             rows = db.execute(stmt).mappings()
-        except SQLAlchemyError as exc:  # pragma: no cover - depends on PG runtime state
+        except (SQLAlchemyError, AttributeError, ValueError) as exc:  # pragma: no cover
             logger.warning(
                 "pgvector_search_failed user_id=%s error=%s fallback=json",
                 user_id,
