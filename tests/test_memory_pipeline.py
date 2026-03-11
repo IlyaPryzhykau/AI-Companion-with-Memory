@@ -33,3 +33,24 @@ def test_chat_stores_structured_and_vector_memory(client, db_session: Session) -
     assert any(item.key == "name" and "Alex" in item.value for item in structured)
     assert len(semantic) == 1
     assert semantic[0].text == "My name is Alex and I live in Berlin."
+
+
+def test_chat_uses_retrieved_memory_in_follow_up_reply(client) -> None:
+    """Follow-up question should use stored name memory in assistant response."""
+
+    token = _signup_and_login(client, "memory-followup@example.com")
+    first = client.post(
+        "/api/v1/chat",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"message": "My name is Alex."},
+    )
+    assert first.status_code == 200
+
+    second = client.post(
+        "/api/v1/chat",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"message": "What is my name?"},
+    )
+
+    assert second.status_code == 200
+    assert "Alex" in second.json()["response"]

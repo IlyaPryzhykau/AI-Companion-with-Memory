@@ -51,7 +51,7 @@ def send_chat_message(
 
     store_vector_memory(db, user_id=current_user.id, text=payload.message, importance=0.55)
 
-    memory_context = build_memory_context(db, user_id=current_user.id)
+    memory_context = build_memory_context(db, user_id=current_user.id, user_query=payload.message)
     assistant_text = generate_assistant_reply(payload.message, memory_context=memory_context)
     assistant_message = Message(chat_id=chat.id, role="assistant", content=assistant_text)
     db.add(assistant_message)
