@@ -30,16 +30,35 @@ def upgrade() -> None:
     op.execute(
         """
         UPDATE vector_memory
-        SET embedding_vector = embedding::vector
+        SET embedding_vector = embedding::text::vector
         WHERE embedding IS NOT NULL
           AND embedding_vector IS NULL
+          AND jsonb_typeof(embedding::jsonb) = 'array'
+          AND jsonb_array_length(embedding::jsonb) = 64
+          AND NOT EXISTS (
+              SELECT 1
+              FROM jsonb_array_elements(embedding::jsonb) AS elem
+              WHERE jsonb_typeof(elem) <> 'number'
+          )
         """
     )
     op.execute(
         """
-        CREATE INDEX IF NOT EXISTS ix_vector_memory_embedding_vector_ivfflat
-        ON vector_memory
-        USING ivfflat (embedding_vector vector_cosine_ops)
+        DO $$
+        DECLARE vector_count BIGINT;
+        BEGIN
+            SELECT COUNT(*) INTO vector_count
+            FROM vector_memory
+            WHERE embedding_vector IS NOT NULL;
+
+            IF vector_count >= 1000 THEN
+                EXECUTE '
+                    CREATE INDEX IF NOT EXISTS ix_vector_memory_embedding_vector_ivfflat
+                    ON vector_memory
+                    USING ivfflat (embedding_vector vector_cosine_ops)
+                ';
+            END IF;
+        END $$;
         """
     )
 

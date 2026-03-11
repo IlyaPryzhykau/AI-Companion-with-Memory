@@ -1,6 +1,7 @@
 """Vector storage and retrieval backends."""
 
 import hashlib
+import logging
 import math
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -10,6 +11,9 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.models.memory import VectorMemory
+
+logger = logging.getLogger(__name__)
+SUPPORTED_EMBEDDING_DIMENSIONS = 64
 
 
 @dataclass
@@ -152,10 +156,18 @@ class PgVectorStore(JsonVectorStore):
             """
         )
 
-        rows = db.execute(
-            stmt,
-            {"user_id": user_id, "query_vector": vector_literal, "limit": limit},
-        ).mappings()
+        try:
+            rows = db.execute(
+                stmt,
+                {"user_id": user_id, "query_vector": vector_literal, "limit": limit},
+            ).mappings()
+        except Exception as exc:  # pragma: no cover - depends on PG runtime state
+            logger.warning(
+                "pgvector_search_failed user_id=%s error=%s fallback=json",
+                user_id,
+                f"{type(exc).__name__}: {exc}",
+            )
+            return super().search(db, user_id, query, limit)
 
         results: list[VectorSearchResult] = []
         for row in rows:
@@ -184,6 +196,11 @@ def get_vector_store() -> JsonVectorStore | PgVectorStore:
     """Resolve configured vector backend implementation."""
 
     settings = get_settings()
+    if settings.vector_embedding_dimensions != SUPPORTED_EMBEDDING_DIMENSIONS:
+        raise ValueError(
+            "VECTOR_EMBEDDING_DIMENSIONS must be 64 for current schema compatibility."
+        )
+
     backend = settings.vector_backend.lower().strip()
     if backend == "pgvector":
         return PgVectorStore(dimensions=settings.vector_embedding_dimensions)

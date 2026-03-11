@@ -555,6 +555,8 @@ VECTOR_BACKEND=json|pgvector
 VECTOR_EMBEDDING_DIMENSIONS=64
 ```
 
+Current implementation supports `VECTOR_EMBEDDING_DIMENSIONS=64` only.
+
 ## Backend Quick Start
 
 ```bash

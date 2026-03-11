@@ -12,7 +12,6 @@ from app.models.memory import UserMemory
 from app.services.vector_store import VectorSearchResult, get_vector_store
 
 logger = logging.getLogger(__name__)
-vector_store = get_vector_store()
 
 STOP_WORDS = {
     "a",
@@ -108,6 +107,7 @@ def store_vector_memory(
 ) -> None:
     """Store a semantic memory chunk with optional embedding."""
 
+    vector_store = get_vector_store()
     vector_store.store(
         db=db,
         user_id=user_id,
@@ -226,6 +226,7 @@ def build_memory_context(
 ) -> str:
     """Build ranked memory context for prompt assembly with budget limits."""
 
+    vector_store = get_vector_store()
     facts = db.execute(select(UserMemory).where(UserMemory.user_id == user_id)).scalars().all()
     semantic = vector_store.search(
         db=db,
