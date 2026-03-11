@@ -47,6 +47,11 @@ Briefly describe what this PR changes and why (2-5 sentences).
 
 ## Testing Evidence
 
+### Coverage mapping (required)
+| Changed behavior | Test file(s) | Test type | Status |
+| --- | --- | --- | --- |
+|  |  | Unit / Integration / E2E | Added / Updated / N/A (justify) |
+
 ### Automated tests
 | Test Type | Command | Result |
 | --- | --- | --- |
@@ -96,6 +101,7 @@ Attach screenshots, request/response snippets, or before/after examples.
 - [ ] Code follows `CONTRIBUTING.md`
 - [ ] Comments/docstrings are in English
 - [ ] Tests added/updated for behavior changes
+- [ ] Coverage mapping table is filled (or N/A justified)
 - [ ] No secrets or sensitive data introduced
 
 ### If applicable
