@@ -36,9 +36,24 @@ class Settings(BaseSettings):
         alias="MEMORY_RETRIEVAL_CANDIDATE_MULTIPLIER",
     )
     memory_context_max_chars: int = Field(default=800, alias="MEMORY_CONTEXT_MAX_CHARS")
-    memory_weight_relevance: float = Field(default=0.65, alias="MEMORY_WEIGHT_RELEVANCE")
-    memory_weight_importance: float = Field(default=0.25, alias="MEMORY_WEIGHT_IMPORTANCE")
-    memory_weight_recency: float = Field(default=0.10, alias="MEMORY_WEIGHT_RECENCY")
+    memory_weight_relevance: float = Field(
+        default=0.65,
+        alias="MEMORY_WEIGHT_RELEVANCE",
+        ge=0.0,
+        le=10.0,
+    )
+    memory_weight_importance: float = Field(
+        default=0.25,
+        alias="MEMORY_WEIGHT_IMPORTANCE",
+        ge=0.0,
+        le=10.0,
+    )
+    memory_weight_recency: float = Field(
+        default=0.10,
+        alias="MEMORY_WEIGHT_RECENCY",
+        ge=0.0,
+        le=10.0,
+    )
     jwt_secret_key: str = Field(
         default="change-me-in-production-at-least-32-chars",
         alias="JWT_SECRET_KEY",

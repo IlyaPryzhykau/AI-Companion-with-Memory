@@ -366,7 +366,13 @@ def _normalize_weights(relevance: float, importance: float, recency: float) -> t
 
     weights = [max(0.0, relevance), max(0.0, importance), max(0.0, recency)]
     total = sum(weights)
-    if total <= 0:
+    if total < 1e-10:
+        logger.warning(
+            "memory_retrieval_weight_normalization_fallback reason=near_zero_sum raw_weights=(%.6f,%.6f,%.6f)",
+            relevance,
+            importance,
+            recency,
+        )
         return 0.65, 0.25, 0.10
     return (weights[0] / total, weights[1] / total, weights[2] / total)
 
@@ -374,7 +380,26 @@ def _normalize_weights(relevance: float, importance: float, recency: float) -> t
 def _resolve_retrieval_policy(max_items: int | None, max_chars: int | None) -> RetrievalPolicy:
     """Resolve retrieval knobs from settings with optional runtime overrides."""
 
-    settings = get_settings()
+    try:
+        settings = get_settings()
+    except Exception as exc:
+        logger.warning(
+            "memory_retrieval_settings_resolution_failed error=%s using_defaults=true",
+            f"{type(exc).__name__}: {exc}",
+        )
+        return RetrievalPolicy(
+            top_k=_coerce_int(max_items if max_items is not None else 6, default=6, min_value=1, max_value=20),
+            max_chars=_coerce_int(
+                max_chars if max_chars is not None else 800,
+                default=800,
+                min_value=80,
+                max_value=8000,
+            ),
+            candidate_multiplier=3,
+            weight_relevance=0.65,
+            weight_importance=0.25,
+            weight_recency=0.10,
+        )
     configured_top_k = settings.memory_retrieval_top_k if max_items is None else max_items
     configured_max_chars = settings.memory_context_max_chars if max_chars is None else max_chars
     top_k = _coerce_int(configured_top_k, default=6, min_value=1, max_value=20)
