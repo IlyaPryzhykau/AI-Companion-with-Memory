@@ -34,16 +34,51 @@ jobs:
       - name: Build diff
         run: git diff --unified=3 "origin/${{ github.base_ref }}"...HEAD > pr.diff
 
-      - name: Trim diff
+      - name: Build review context
+        env:
+          BASE_REF: ${{ github.base_ref }}
         run: |
           python - <<'PY'
+          import os
+          import subprocess
           from pathlib import Path
 
           diff = Path("pr.diff").read_text(encoding="utf-8", errors="ignore")
-          max_chars = 120000
-          if len(diff) > max_chars:
-              diff = diff[:max_chars] + "\n\n[DIFF TRUNCATED]"
-          Path("pr_trimmed.diff").write_text(diff, encoding="utf-8")
+          max_diff_chars = 120000
+          max_total_chars = 260000
+          max_file_chars = 24000
+          max_files = 30
+
+          if len(diff) > max_diff_chars:
+              diff = diff[:max_diff_chars] + "\n\n[DIFF TRUNCATED]"
+
+          changed_raw = subprocess.check_output(
+              ["git", "diff", "--name-only", f"origin/{os.environ['BASE_REF']}...HEAD"],
+              text=True,
+          )
+          changed_files = [line.strip() for line in changed_raw.splitlines() if line.strip()][:max_files]
+
+          sections = ["=== DIFF ===", diff, "", "=== CHANGED FILES CONTEXT ==="]
+          used = len("\n".join(sections))
+
+          for rel in changed_files:
+              path = Path(rel)
+              if not path.exists() or not path.is_file():
+                  continue
+
+              content = path.read_text(encoding="utf-8", errors="ignore")
+              if len(content) > max_file_chars:
+                  content = content[:max_file_chars] + "\n\n[FILE CONTENT TRUNCATED]"
+              chunk = f"\n--- FILE: {rel} ---\n{content}\n"
+
+              if used + len(chunk) > max_total_chars:
+                  sections.append("\n[CONTEXT TRUNCATED DUE TO SIZE LIMIT]")
+                  break
+
+              sections.append(chunk)
+              used += len(chunk)
+
+          Path("review_context.txt").write_text("\n".join(sections), encoding="utf-8")
           PY
 
       - name: Set up Python
@@ -79,7 +114,7 @@ jobs:
               Path("review_decision.txt").write_text("CHANGES_REQUIRED", encoding="utf-8")
               raise SystemExit(0)
 
-          diff = Path("pr_trimmed.diff").read_text(encoding="utf-8", errors="ignore")
+          review_context = Path("review_context.txt").read_text(encoding="utf-8", errors="ignore")
           pr_title = os.getenv("PR_TITLE", "")
           pr_body = os.getenv("PR_BODY", "")
 
@@ -121,7 +156,7 @@ jobs:
               "- Keep each finding concise but actionable.\n\n"
               f"Context:\nPR title: {pr_title}\n\n"
               f"PR body:\n{pr_body}\n\n"
-              f"Diff:\n{diff}\n"
+              f"Repository context (diff + changed files):\n{review_context}\n"
           )
 
           try:
