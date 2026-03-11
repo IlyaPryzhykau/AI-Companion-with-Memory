@@ -9,6 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import DBAPIError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.models.memory import UserMemory
 from app.services.vector_store import (
     SUPPORTED_EMBEDDING_DIMENSIONS,
@@ -72,6 +73,18 @@ class MemoryCandidate:
     recency_score: float
     relevance_score: float
     final_score: float
+
+
+@dataclass(frozen=True)
+class RetrievalPolicy:
+    """Runtime retrieval policy resolved from config + request overrides."""
+
+    top_k: int
+    max_chars: int
+    candidate_multiplier: int
+    weight_relevance: float
+    weight_importance: float
+    weight_recency: float
 
 
 def extract_structured_facts(text: str) -> list[tuple[str, str, float]]:
@@ -200,6 +213,7 @@ def _build_structured_candidates(
     facts: list[UserMemory],
     user_query: str,
     now: datetime,
+    policy: RetrievalPolicy,
 ) -> list[MemoryCandidate]:
     """Build scored structured-memory candidates."""
 
@@ -208,7 +222,11 @@ def _build_structured_candidates(
         text = f"{fact.key}: {fact.value}"
         relevance = _relevance_score(user_query, text)
         recency = _recency_score(fact.updated_at, now)
-        score = (fact.importance * 0.55) + (relevance * 0.30) + (recency * 0.15)
+        score = (
+            (fact.importance * policy.weight_importance)
+            + (relevance * policy.weight_relevance)
+            + (recency * policy.weight_recency)
+        )
         candidates.append(
             MemoryCandidate(
                 kind="structured",
@@ -225,6 +243,7 @@ def _build_structured_candidates(
 def _build_vector_candidates(
     semantic: list[VectorSearchResult],
     now: datetime,
+    policy: RetrievalPolicy,
 ) -> list[MemoryCandidate]:
     """Build scored vector-memory candidates."""
 
@@ -232,7 +251,11 @@ def _build_vector_candidates(
     for item in semantic:
         relevance = item.similarity
         recency = _recency_score(item.created_at, now)
-        score = (item.importance * 0.20) + (relevance * 0.70) + (recency * 0.10)
+        score = (
+            (item.importance * policy.weight_importance)
+            + (relevance * policy.weight_relevance)
+            + (recency * policy.weight_recency)
+        )
         candidates.append(
             MemoryCandidate(
                 kind="semantic",
@@ -250,33 +273,34 @@ def build_memory_context(
     db: Session,
     user_id: int,
     user_query: str = "",
-    max_items: int = 6,
-    max_chars: int = 800,
+    max_items: int | None = None,
+    max_chars: int | None = None,
 ) -> str:
     """Build ranked memory context for prompt assembly with budget limits."""
 
+    policy = _resolve_retrieval_policy(max_items=max_items, max_chars=max_chars)
     vector_store = _resolve_vector_store()
     facts = db.execute(select(UserMemory).where(UserMemory.user_id == user_id)).scalars().all()
     semantic = vector_store.search(
         db=db,
         user_id=user_id,
         query=user_query,
-        limit=max_items * 3,
+        limit=policy.top_k * policy.candidate_multiplier,
     )
 
     now = datetime.now(UTC)
-    candidates = _build_structured_candidates(facts, user_query, now)
-    candidates.extend(_build_vector_candidates(semantic, now))
+    candidates = _build_structured_candidates(facts, user_query, now, policy=policy)
+    candidates.extend(_build_vector_candidates(semantic, now, policy=policy))
 
     sorted_candidates = sorted(
         candidates,
         key=lambda item: (item.final_score, item.importance, item.recency_score),
         reverse=True,
     )
-    top_candidates = sorted_candidates[:max_items]
+    top_candidates = sorted_candidates[: policy.top_k]
 
     header = "Retrieved memory context:"
-    content_budget = max(0, max_chars - len(header) - 1)
+    content_budget = max(0, policy.max_chars - len(header) - 1)
     if content_budget == 0:
         return ""
 
@@ -302,17 +326,75 @@ def build_memory_context(
     if not lines:
         return ""
 
+    selected_details = [
+        (
+            f"{item.kind}|score={item.final_score:.3f}|rel={item.relevance_score:.3f}|"
+            f"imp={item.importance:.3f}|rec={item.recency_score:.3f}|text={item.text[:48]!r}"
+        )
+        for item in top_candidates[: min(len(top_candidates), 5)]
+    ]
     logger.info(
-        "memory_retrieval user_id=%s backend=%s query_tokens=%s candidates=%s selected=%s dropped_budget=%s max_items=%s max_chars=%s used_chars=%s",
+        "memory_retrieval user_id=%s backend=%s query_tokens=%s candidates=%s selected=%s dropped_budget=%s top_k=%s max_chars=%s used_chars=%s weights=(rel=%.2f,imp=%.2f,rec=%.2f) selected_candidates=%s",
         user_id,
         type(vector_store).__name__,
         len(_tokenize(user_query)),
         len(candidates),
         len(lines),
         dropped_due_to_budget,
-        max_items,
+        policy.top_k,
         content_budget,
         chars_used,
+        policy.weight_relevance,
+        policy.weight_importance,
+        policy.weight_recency,
+        selected_details,
     )
 
     return header + "\n" + "\n".join(lines)
+
+
+def _coerce_int(value: int, default: int, min_value: int, max_value: int) -> int:
+    """Clamp integer config values to safe limits."""
+
+    if not isinstance(value, int):
+        return default
+    return max(min_value, min(value, max_value))
+
+
+def _normalize_weights(relevance: float, importance: float, recency: float) -> tuple[float, float, float]:
+    """Normalize retrieval weights to sum to 1.0 with safe defaults."""
+
+    weights = [max(0.0, relevance), max(0.0, importance), max(0.0, recency)]
+    total = sum(weights)
+    if total <= 0:
+        return 0.65, 0.25, 0.10
+    return (weights[0] / total, weights[1] / total, weights[2] / total)
+
+
+def _resolve_retrieval_policy(max_items: int | None, max_chars: int | None) -> RetrievalPolicy:
+    """Resolve retrieval knobs from settings with optional runtime overrides."""
+
+    settings = get_settings()
+    configured_top_k = settings.memory_retrieval_top_k if max_items is None else max_items
+    configured_max_chars = settings.memory_context_max_chars if max_chars is None else max_chars
+    top_k = _coerce_int(configured_top_k, default=6, min_value=1, max_value=20)
+    max_context_chars = _coerce_int(configured_max_chars, default=800, min_value=80, max_value=8000)
+    multiplier = _coerce_int(
+        settings.memory_retrieval_candidate_multiplier,
+        default=3,
+        min_value=1,
+        max_value=10,
+    )
+    weights = _normalize_weights(
+        settings.memory_weight_relevance,
+        settings.memory_weight_importance,
+        settings.memory_weight_recency,
+    )
+    return RetrievalPolicy(
+        top_k=top_k,
+        max_chars=max_context_chars,
+        candidate_multiplier=multiplier,
+        weight_relevance=weights[0],
+        weight_importance=weights[1],
+        weight_recency=weights[2],
+    )

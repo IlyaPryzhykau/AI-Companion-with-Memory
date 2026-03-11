@@ -84,3 +84,34 @@ def test_chat_does_not_invent_name_when_none_is_stored(client) -> None:
 
     assert response.status_code == 200
     assert response.json()["response"] == "Echo: What is my name?"
+
+
+def test_chat_memory_context_influences_answer_generation(client, monkeypatch) -> None:
+    """Chat flow should pass retrieved memory context into assistant generation."""
+
+    token = _signup_and_login(client, "memory-influence@example.com")
+    seed = client.post(
+        "/api/v1/chat",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"message": "I am preparing for a distributed systems interview."},
+    )
+    assert seed.status_code == 200
+
+    def _fake_generate_assistant_reply(user_message: str, memory_context: str | None = None) -> str:
+        if "focus" in user_message.lower():
+            return f"Context seen: {memory_context or ''}"
+        return f"Echo: {user_message}"
+
+    monkeypatch.setattr(
+        "app.api.v1.endpoints.chat.generate_assistant_reply",
+        _fake_generate_assistant_reply,
+    )
+
+    response = client.post(
+        "/api/v1/chat",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"message": "What should I focus on for prep?"},
+    )
+
+    assert response.status_code == 200
+    assert "distributed systems interview" in response.json()["response"].lower()

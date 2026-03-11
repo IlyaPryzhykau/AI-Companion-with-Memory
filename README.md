@@ -557,6 +557,27 @@ VECTOR_EMBEDDING_DIMENSIONS=64
 
 Current implementation supports `VECTOR_EMBEDDING_DIMENSIONS=64` only.
 
+Memory retrieval policy is configurable via environment variables:
+
+```text
+MEMORY_RETRIEVAL_TOP_K=6
+MEMORY_RETRIEVAL_CANDIDATE_MULTIPLIER=3
+MEMORY_CONTEXT_MAX_CHARS=800
+MEMORY_WEIGHT_RELEVANCE=0.65
+MEMORY_WEIGHT_IMPORTANCE=0.25
+MEMORY_WEIGHT_RECENCY=0.10
+```
+
+Retrieval ranking score is computed as:
+
+```text
+score = (relevance * MEMORY_WEIGHT_RELEVANCE)
+      + (importance * MEMORY_WEIGHT_IMPORTANCE)
+      + (recency * MEMORY_WEIGHT_RECENCY)
+```
+
+Weights are normalized at runtime, and memory context is trimmed to `MEMORY_CONTEXT_MAX_CHARS`.
+
 ## Backend Quick Start
 
 ```bash

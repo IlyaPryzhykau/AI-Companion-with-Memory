@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.models.memory import VectorMemory
 from app.models.user import User
+from app.core.config import get_settings
 from app.services.memory import build_memory_context
 
 
@@ -170,3 +171,84 @@ def test_retrieval_uses_importance_when_query_has_only_stop_words(db_session: Se
     )
 
     assert "high priority memory" in context.lower()
+
+
+def test_retrieval_uses_configured_weights(db_session: Session, monkeypatch) -> None:
+    """Configured weights should influence ranking outcomes."""
+
+    monkeypatch.setenv("MEMORY_WEIGHT_RELEVANCE", "0.05")
+    monkeypatch.setenv("MEMORY_WEIGHT_IMPORTANCE", "0.90")
+    monkeypatch.setenv("MEMORY_WEIGHT_RECENCY", "0.05")
+    get_settings.cache_clear()
+
+    try:
+        user = User(email="retrieval-weights@example.com", password_hash="hash")
+        db_session.add(user)
+        db_session.flush()
+
+        db_session.add_all(
+            [
+                VectorMemory(
+                    user_id=user.id,
+                    text="Interview prep checklist",
+                    importance=0.2,
+                ),
+                VectorMemory(
+                    user_id=user.id,
+                    text="Unrelated hobby notes",
+                    importance=0.95,
+                ),
+            ]
+        )
+        db_session.commit()
+
+        context = build_memory_context(
+            db_session,
+            user_id=user.id,
+            user_query="help me with interview preparation",
+            max_items=1,
+        )
+    finally:
+        get_settings.cache_clear()
+
+    assert "unrelated hobby notes" in context.lower()
+
+
+def test_retrieval_uses_configured_top_k_and_char_budget(db_session: Session, monkeypatch) -> None:
+    """Top-k and char budget defaults should be sourced from settings."""
+
+    monkeypatch.setenv("MEMORY_RETRIEVAL_TOP_K", "1")
+    monkeypatch.setenv("MEMORY_CONTEXT_MAX_CHARS", "90")
+    get_settings.cache_clear()
+
+    try:
+        user = User(email="retrieval-config-budget@example.com", password_hash="hash")
+        db_session.add(user)
+        db_session.flush()
+        db_session.add_all(
+            [
+                VectorMemory(
+                    user_id=user.id,
+                    text="first memory about interview planning " + ("x" * 80),
+                    importance=0.9,
+                ),
+                VectorMemory(
+                    user_id=user.id,
+                    text="second memory that should not fit due to top-k",
+                    importance=0.8,
+                ),
+            ]
+        )
+        db_session.commit()
+
+        context = build_memory_context(
+            db_session,
+            user_id=user.id,
+            user_query="interview planning",
+        )
+    finally:
+        get_settings.cache_clear()
+
+    assert context.startswith("Retrieved memory context:")
+    assert context.count("\n- [") == 1
+    assert len(context) <= 90
