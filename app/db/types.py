@@ -1,9 +1,16 @@
 """Custom SQLAlchemy types used across database models."""
 
+import logging
+
 from sqlalchemy import JSON
 from sqlalchemy.types import TypeDecorator
 
-from pgvector.sqlalchemy import Vector
+logger = logging.getLogger(__name__)
+
+try:
+    from pgvector.sqlalchemy import Vector as PgVector
+except ImportError:  # pragma: no cover - depends on optional runtime dependency
+    PgVector = None  # type: ignore[assignment]
 
 
 class EmbeddingVector(TypeDecorator):
@@ -11,7 +18,7 @@ class EmbeddingVector(TypeDecorator):
 
     cache_ok = True
     impl = JSON
-    comparator_factory = Vector.comparator_factory
+    comparator_factory = JSON.comparator_factory if PgVector is None else PgVector.comparator_factory
 
     def __init__(self, dimensions: int = 64) -> None:
         super().__init__()
@@ -21,9 +28,14 @@ class EmbeddingVector(TypeDecorator):
         """Select the most appropriate storage type per SQL dialect."""
 
         if dialect.name == "postgresql":
+            if PgVector is None:
+                raise RuntimeError(
+                    "pgvector package is required for PostgreSQL vector columns. "
+                    "Install dependency `pgvector`."
+                )
             if self.dimensions <= 0 or self.dimensions > 2000:
                 raise ValueError("PostgreSQL vector dimensions must be in range 1..2000.")
-            return dialect.type_descriptor(Vector(self.dimensions))
+            return dialect.type_descriptor(PgVector(self.dimensions))
         return dialect.type_descriptor(JSON())
 
     def process_bind_param(self, value, dialect):
