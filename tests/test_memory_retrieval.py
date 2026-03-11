@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.models.memory import VectorMemory
 from app.models.user import User
-from app.services.memory import build_memory_context
+from app.services.memory import _normalize_weights, build_memory_context
 
 
 def test_retrieval_prefers_relevant_memory_text(db_session: Session) -> None:
@@ -261,3 +261,19 @@ def test_retrieval_uses_configured_top_k_and_char_budget(db_session: Session, mo
     assert context.startswith("Retrieved memory context:")
     assert context.count("\n- [") == 1
     assert len(context) <= 90
+
+
+def test_normalize_weights_falls_back_for_zero_sum() -> None:
+    """Zero/near-zero weights should use deterministic default fallback."""
+
+    weights = _normalize_weights(0.0, 0.0, 0.0)
+    assert weights == (0.65, 0.25, 0.10)
+
+
+def test_normalize_weights_clamps_negative_values() -> None:
+    """Negative weights should be clamped to zero before normalization."""
+
+    relevance, importance, recency = _normalize_weights(-1.0, 2.0, -3.0)
+    assert relevance == 0.0
+    assert importance == 1.0
+    assert recency == 0.0

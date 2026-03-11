@@ -5,6 +5,7 @@ import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
+from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.exc import DBAPIError, SQLAlchemyError
 from sqlalchemy.orm import Session
@@ -382,8 +383,8 @@ def _resolve_retrieval_policy(max_items: int | None, max_chars: int | None) -> R
 
     try:
         settings = get_settings()
-    except Exception as exc:
-        logger.warning(
+    except ValidationError as exc:
+        logger.error(
             "memory_retrieval_settings_resolution_failed error=%s using_defaults=true",
             f"{type(exc).__name__}: {exc}",
         )
