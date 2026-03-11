@@ -30,6 +30,42 @@ class Settings(BaseSettings):
     openai_api_key: str = Field(default="", alias="OPENAI_API_KEY")
     vector_backend: str = Field(default="json", alias="VECTOR_BACKEND")
     vector_embedding_dimensions: int = Field(default=64, alias="VECTOR_EMBEDDING_DIMENSIONS")
+    memory_retrieval_top_k: int = Field(
+        default=6,
+        alias="MEMORY_RETRIEVAL_TOP_K",
+        ge=1,
+        le=50,
+    )
+    memory_retrieval_candidate_multiplier: int = Field(
+        default=3,
+        alias="MEMORY_RETRIEVAL_CANDIDATE_MULTIPLIER",
+        ge=1,
+        le=10,
+    )
+    memory_context_max_chars: int = Field(
+        default=800,
+        alias="MEMORY_CONTEXT_MAX_CHARS",
+        ge=50,
+        le=10000,
+    )
+    memory_weight_relevance: float = Field(
+        default=0.65,
+        alias="MEMORY_WEIGHT_RELEVANCE",
+        ge=0.0,
+        le=10.0,
+    )
+    memory_weight_importance: float = Field(
+        default=0.25,
+        alias="MEMORY_WEIGHT_IMPORTANCE",
+        ge=0.0,
+        le=10.0,
+    )
+    memory_weight_recency: float = Field(
+        default=0.10,
+        alias="MEMORY_WEIGHT_RECENCY",
+        ge=0.0,
+        le=10.0,
+    )
     jwt_secret_key: str = Field(
         default="change-me-in-production-at-least-32-chars",
         alias="JWT_SECRET_KEY",
