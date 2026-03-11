@@ -66,46 +66,33 @@ jobs:
           pr_title = os.getenv('PR_TITLE', '')
           pr_body = os.getenv('PR_BODY', '')
 
-          prompt = f"""
-You are a senior Python reviewer.
-
-Review this pull request diff.
-
-Focus only on important issues:
-- bugs
-- broken logic
-- risky SQLAlchemy/FastAPI issues
-- security issues
-- missing error handling
-- tests that are clearly needed
-- performance problems
-- bad architecture that should block merge
-
-Ignore minor style nitpicks unless they hide a real issue.
-
-Return strictly in this format:
-
-DECISION: APPROVED
-or
-DECISION: CHANGES_REQUIRED
-
-SUMMARY:
-- short summary
-
-FINDINGS:
-- bullet list
-- each item should be actionable
-- reference files/functions when possible
-
-Context:
-PR title: {pr_title}
-
-PR body:
-{pr_body}
-
-Diff:
-{diff}
-"""
+          prompt = (
+              "You are a senior Python reviewer.\n\n"
+              "Review this pull request diff.\n\n"
+              "Focus only on important issues:\n"
+              "- bugs\n"
+              "- broken logic\n"
+              "- risky SQLAlchemy/FastAPI issues\n"
+              "- security issues\n"
+              "- missing error handling\n"
+              "- tests that are clearly needed\n"
+              "- performance problems\n"
+              "- bad architecture that should block merge\n\n"
+              "Ignore minor style nitpicks unless they hide a real issue.\n\n"
+              "Return strictly in this format:\n\n"
+              "DECISION: APPROVED\n"
+              "or\n"
+              "DECISION: CHANGES_REQUIRED\n\n"
+              "SUMMARY:\n"
+              "- short summary\n\n"
+              "FINDINGS:\n"
+              "- bullet list\n"
+              "- each item should be actionable\n"
+              "- reference files/functions when possible\n\n"
+              f"Context:\nPR title: {pr_title}\n\n"
+              f"PR body:\n{pr_body}\n\n"
+              f"Diff:\n{diff}\n"
+          )
 
           client = Anthropic(api_key=os.environ['ANTHROPIC_API_KEY'])
 
