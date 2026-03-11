@@ -2,11 +2,13 @@ name: Claude AI Review
 
 on:
   pull_request:
-    types: [opened, reopened, synchronize, ready_for_review]
+    types: [opened, reopened, ready_for_review]
+  workflow_dispatch:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
   FAIL_ON_CHANGES_REQUIRED: "false"
+  REVIEW_MODEL: "claude-3-5-haiku-20241022"
 
 concurrency:
   group: claude-review-${{ github.event.pull_request.number }}
@@ -44,10 +46,10 @@ jobs:
           from pathlib import Path
 
           diff = Path("pr.diff").read_text(encoding="utf-8", errors="ignore")
-          max_diff_chars = 120000
-          max_total_chars = 260000
-          max_file_chars = 24000
-          max_files = 30
+          max_diff_chars = 80000
+          max_total_chars = 120000
+          max_file_chars = 12000
+          max_files = 15
 
           if len(diff) > max_diff_chars:
               diff = diff[:max_diff_chars] + "\n\n[DIFF TRUNCATED]"
@@ -94,6 +96,7 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
+          REVIEW_MODEL: ${{ env.REVIEW_MODEL }}
         run: |
           python - <<'PY'
           import os
@@ -162,8 +165,8 @@ jobs:
           try:
               client = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
               response = client.messages.create(
-                  model="claude-sonnet-4-20250514",
-                  max_tokens=4096,
+                  model=os.environ.get("REVIEW_MODEL", "claude-3-5-haiku-20241022"),
+                  max_tokens=1800,
                   temperature=0,
                   messages=[{"role": "user", "content": prompt}],
               )
