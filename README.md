@@ -548,6 +548,13 @@ Default PostgreSQL port for this project is:
 5440
 ```
 
+Vector retrieval backend can be configured with:
+
+```text
+VECTOR_BACKEND=json|pgvector
+VECTOR_EMBEDDING_DIMENSIONS=64
+```
+
 ## Backend Quick Start
 
 ```bash

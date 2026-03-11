@@ -8,9 +8,11 @@ from datetime import UTC, datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models.memory import UserMemory, VectorMemory
+from app.models.memory import UserMemory
+from app.services.vector_store import VectorSearchResult, get_vector_store
 
 logger = logging.getLogger(__name__)
+vector_store = get_vector_store()
 
 STOP_WORDS = {
     "a",
@@ -106,13 +108,12 @@ def store_vector_memory(
 ) -> None:
     """Store a semantic memory chunk with optional embedding."""
 
-    db.add(
-        VectorMemory(
-            user_id=user_id,
-            text=text.strip(),
-            importance=importance,
-            embedding=embedding,
-        )
+    vector_store.store(
+        db=db,
+        user_id=user_id,
+        text_value=text,
+        importance=importance,
+        embedding=embedding,
     )
 
 
@@ -193,17 +194,16 @@ def _build_structured_candidates(
 
 
 def _build_vector_candidates(
-    semantic: list[VectorMemory],
-    user_query: str,
+    semantic: list[VectorSearchResult],
     now: datetime,
 ) -> list[MemoryCandidate]:
     """Build scored vector-memory candidates."""
 
     candidates: list[MemoryCandidate] = []
     for item in semantic:
-        relevance = _relevance_score(user_query, item.text)
+        relevance = item.similarity
         recency = _recency_score(item.created_at, now)
-        score = (item.importance * 0.35) + (relevance * 0.45) + (recency * 0.20)
+        score = (item.importance * 0.20) + (relevance * 0.70) + (recency * 0.10)
         candidates.append(
             MemoryCandidate(
                 kind="semantic",
@@ -227,11 +227,16 @@ def build_memory_context(
     """Build ranked memory context for prompt assembly with budget limits."""
 
     facts = db.execute(select(UserMemory).where(UserMemory.user_id == user_id)).scalars().all()
-    semantic = db.execute(select(VectorMemory).where(VectorMemory.user_id == user_id)).scalars().all()
+    semantic = vector_store.search(
+        db=db,
+        user_id=user_id,
+        query=user_query,
+        limit=max_items * 3,
+    )
 
     now = datetime.now(UTC)
     candidates = _build_structured_candidates(facts, user_query, now)
-    candidates.extend(_build_vector_candidates(semantic, user_query, now))
+    candidates.extend(_build_vector_candidates(semantic, now))
 
     sorted_candidates = sorted(
         candidates,
@@ -268,8 +273,9 @@ def build_memory_context(
         return ""
 
     logger.info(
-        "memory_retrieval user_id=%s query_tokens=%s candidates=%s selected=%s dropped_budget=%s max_items=%s max_chars=%s used_chars=%s",
+        "memory_retrieval user_id=%s backend=%s query_tokens=%s candidates=%s selected=%s dropped_budget=%s max_items=%s max_chars=%s used_chars=%s",
         user_id,
+        type(vector_store).__name__,
         len(_tokenize(user_query)),
         len(candidates),
         len(lines),

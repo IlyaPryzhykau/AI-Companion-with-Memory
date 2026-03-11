@@ -6,6 +6,7 @@ from sqlalchemy import DateTime, Float, ForeignKey, Integer, JSON, String, Text,
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
+from app.db.types import EmbeddingVector
 
 
 class UserProfile(Base):
@@ -62,6 +63,7 @@ class VectorMemory(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     text: Mapped[str] = mapped_column(Text, nullable=False)
     embedding: Mapped[list[float] | None] = mapped_column(JSON, nullable=True)
+    embedding_vector: Mapped[list[float] | None] = mapped_column(EmbeddingVector(64), nullable=True)
     importance: Mapped[float] = mapped_column(Float, default=0.5, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
