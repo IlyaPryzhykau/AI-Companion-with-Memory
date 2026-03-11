@@ -337,6 +337,26 @@ embedding generation
 store in vector DB
 ```
 
+## Memory Phase 2 (Current Implementation)
+
+This project now includes baseline memory persistence in the chat flow:
+
+- Structured memory upsert from detected user facts
+- Vector memory record creation for user messages
+- Memory context assembly before assistant reply generation
+
+Database migration introduced in phase 2:
+
+```text
+alembic/versions/20260310_0002_add_memory_tables.py
+```
+
+Operational rollout and rollback instructions:
+
+```text
+docs/runbooks/memory-phase2.md
+```
+
 ## Technology Stack
 
 ### Backend
@@ -583,6 +603,12 @@ Run tests:
 
 ```bash
 pytest
+```
+
+Run focused memory tests:
+
+```bash
+pytest tests/test_memory_pipeline.py
 ```
 
 ## Development Rules
