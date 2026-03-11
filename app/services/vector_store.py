@@ -151,11 +151,7 @@ class JsonVectorStore:
     def _validate_embedding(self, embedding: list[float]) -> list[float]:
         """Validate embedding dimensions for current backend configuration."""
 
-        if len(embedding) != self.dimensions:
-            raise ValueError(
-                f"Embedding dimension mismatch: expected {self.dimensions}, got {len(embedding)}."
-            )
-        return embedding
+        return validate_embedding_vector(embedding, expected_dimensions=self.dimensions)
 
 
 class PgVectorStore(JsonVectorStore):
@@ -235,6 +231,10 @@ def get_vector_store() -> JsonVectorStore | PgVectorStore:
         )
 
     backend = settings.vector_backend.lower().strip()
+    if backend not in {"json", "pgvector"}:
+        raise ValueError(
+            f"Unsupported VECTOR_BACKEND '{settings.vector_backend}'. Use 'json' or 'pgvector'."
+        )
     if backend == "pgvector":
         return PgVectorStore(dimensions=settings.vector_embedding_dimensions)
     return JsonVectorStore(dimensions=settings.vector_embedding_dimensions)

@@ -9,6 +9,7 @@ from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import op
+from sqlalchemy.exc import DBAPIError, SQLAlchemyError
 
 from app.db.types import EmbeddingVector
 
@@ -33,7 +34,7 @@ def upgrade() -> None:
     if not extension_installed:
         try:
             op.execute("CREATE EXTENSION IF NOT EXISTS vector")
-        except Exception as exc:  # pragma: no cover - depends on DB privileges
+        except (SQLAlchemyError, DBAPIError) as exc:  # pragma: no cover - depends on DB privileges
             raise RuntimeError(
                 "Failed to create pgvector extension. "
                 "Install extension or grant privileges before migration."
