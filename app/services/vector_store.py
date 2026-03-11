@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.models.memory import VectorMemory
+from app.services.vector_validation import validate_embedding_vector
 
 logger = logging.getLogger(__name__)
 SUPPORTED_EMBEDDING_DIMENSIONS = 64
@@ -39,16 +40,9 @@ def _normalize(values: list[float]) -> list[float]:
 def _ensure_safe_vector(values: list[float], expected_dimensions: int) -> list[float]:
     """Validate vector payload before using it in DB similarity expressions."""
 
-    if len(values) != expected_dimensions:
-        raise ValueError(
-            f"Embedding dimension mismatch: expected {expected_dimensions}, got {len(values)}."
-        )
     if not all(isinstance(value, float | int) for value in values):
         raise ValueError("Embedding vector must contain numeric values.")
-    normalized = [float(value) for value in values]
-    if not all(math.isfinite(value) for value in normalized):
-        raise ValueError("Embedding vector contains non-finite values.")
-    return normalized
+    return validate_embedding_vector(values, expected_dimensions=expected_dimensions)
 
 
 def embed_text(text: str, dimensions: int = 64) -> list[float]:
@@ -94,15 +88,24 @@ class JsonVectorStore:
 
         computed_embedding = embedding or embed_text(text_value, dimensions=self.dimensions)
         computed_embedding = self._validate_embedding(computed_embedding)
-        db.add(
-            VectorMemory(
-                user_id=user_id,
-                text=text_value.strip(),
-                importance=importance,
-                embedding=computed_embedding,
-                embedding_vector=computed_embedding,
+        try:
+            db.add(
+                VectorMemory(
+                    user_id=user_id,
+                    text=text_value.strip(),
+                    importance=importance,
+                    embedding=computed_embedding,
+                    embedding_vector=computed_embedding,
+                )
             )
-        )
+        except SQLAlchemyError as exc:
+            logger.warning(
+                "vector_store_add_failed user_id=%s backend=%s error=%s",
+                user_id,
+                type(self).__name__,
+                f"{type(exc).__name__}: {exc}",
+            )
+            raise
 
     def search(
         self,

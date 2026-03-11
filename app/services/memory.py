@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 
 from sqlalchemy import select
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import DBAPIError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.models.memory import UserMemory
@@ -121,6 +121,8 @@ def store_vector_memory(
         savepoint.commit()
     except (SQLAlchemyError, ValueError) as exc:
         savepoint.rollback()
+        if isinstance(exc, DBAPIError) and exc.connection_invalidated:
+            raise
         logger.warning(
             "vector_store_write_failed user_id=%s backend=%s error=%s",
             user_id,

@@ -27,19 +27,18 @@ def upgrade() -> None:
         op.add_column("vector_memory", sa.Column("embedding_vector", sa.JSON(), nullable=True))
         return
 
-    op.execute(
-        """
-        DO $$
-        BEGIN
-            BEGIN
-                CREATE EXTENSION IF NOT EXISTS vector;
-            EXCEPTION
-                WHEN insufficient_privilege THEN
-                    RAISE NOTICE 'Skipping CREATE EXTENSION vector due to insufficient privileges';
-            END;
-        END $$;
-        """
-    )
+    extension_installed = bind.execute(
+        sa.text("SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'vector')")
+    ).scalar_one()
+    if not extension_installed:
+        try:
+            op.execute("CREATE EXTENSION IF NOT EXISTS vector")
+        except Exception as exc:  # pragma: no cover - depends on DB privileges
+            raise RuntimeError(
+                "Failed to create pgvector extension. "
+                "Install extension or grant privileges before migration."
+            ) from exc
+
     extension_installed = bind.execute(
         sa.text("SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'vector')")
     ).scalar_one()

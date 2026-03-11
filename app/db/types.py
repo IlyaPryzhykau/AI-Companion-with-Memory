@@ -1,10 +1,11 @@
 """Custom SQLAlchemy types used across database models."""
 
 import logging
-import math
 
 from sqlalchemy import JSON
 from sqlalchemy.types import TypeDecorator
+
+from app.services.vector_validation import validate_embedding_vector
 
 logger = logging.getLogger(__name__)
 
@@ -46,16 +47,6 @@ class EmbeddingVector(TypeDecorator):
             return value
         if not isinstance(value, list):
             raise ValueError("Embedding value must be a list of floats.")
-        if len(value) != self.dimensions:
-            raise ValueError(
-                f"Embedding dimension mismatch: expected {self.dimensions}, got {len(value)}."
-            )
         if not all(isinstance(item, (int, float)) for item in value):
             raise ValueError("Embedding list must contain only numeric values.")
-        try:
-            normalized = [float(item) for item in value]
-        except (TypeError, ValueError) as exc:
-            raise ValueError("Embedding contains non-convertible numeric values.") from exc
-        if not all(math.isfinite(item) for item in normalized):
-            raise ValueError("Embedding list contains non-finite values.")
-        return normalized
+        return validate_embedding_vector(value, expected_dimensions=self.dimensions)
