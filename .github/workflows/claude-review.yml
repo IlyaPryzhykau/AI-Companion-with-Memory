@@ -1,0 +1,130 @@
+name: Claude AI Review
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  review:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch base branch
+        run: |
+          git fetch origin "${{ github.base_ref }}" --depth=1
+
+      - name: Build diff
+        run: |
+          git diff --unified=3 "origin/${{ github.base_ref }}"...HEAD > pr.diff
+
+      - name: Trim diff
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          diff_path = Path("pr.diff")
+          diff = diff_path.read_text(encoding="utf-8", errors="ignore")
+
+          max_chars = 120000
+          if len(diff) > max_chars:
+              diff = diff[:max_chars] + "\n\n[DIFF TRUNCATED]"
+
+          Path("pr_trimmed.diff").write_text(diff, encoding="utf-8")
+          PY
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Anthropic SDK
+        run: pip install anthropic
+
+      - name: Ask Claude to review
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          from anthropic import Anthropic
+
+          diff = Path("pr_trimmed.diff").read_text(encoding="utf-8", errors="ignore")
+          pr_title = os.getenv("PR_TITLE", "")
+          pr_body = os.getenv("PR_BODY", "")
+
+          prompt = (
+              "You are a senior Python reviewer.\n\n"
+              "Review this pull request diff.\n\n"
+              "Focus only on important issues:\n"
+              "- bugs\n"
+              "- broken logic\n"
+              "- risky SQLAlchemy/FastAPI issues\n"
+              "- security issues\n"
+              "- missing error handling\n"
+              "- tests that are clearly needed\n"
+              "- performance problems\n"
+              "- bad architecture that should block merge\n\n"
+              "Ignore minor style nitpicks unless they hide a real issue.\n\n"
+              "Return strictly in this format:\n\n"
+              "DECISION: APPROVED\n"
+              "or\n"
+              "DECISION: CHANGES_REQUIRED\n\n"
+              "SUMMARY:\n"
+              "- short summary\n\n"
+              "FINDINGS:\n"
+              "- bullet list\n"
+              "- each item should be actionable\n"
+              "- reference files/functions when possible\n\n"
+              f"Context:\nPR title: {pr_title}\n\n"
+              f"PR body:\n{pr_body}\n\n"
+              f"Diff:\n{diff}\n"
+          )
+
+          client = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+
+          response = client.messages.create(
+              model="claude-sonnet-4-5",
+              max_tokens=1800,
+              temperature=0,
+              messages=[
+                  {
+                      "role": "user",
+                      "content": prompt,
+                  }
+              ],
+          )
+
+          text = "".join(
+              block.text for block in response.content if getattr(block, "type", "") == "text"
+          ).strip()
+
+          Path("review.txt").write_text(text, encoding="utf-8")
+          PY
+
+      - name: Post review comment to PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const review = fs.readFileSync('review.txt', 'utf8');
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `## Claude review\n\n${review}`
+            });
