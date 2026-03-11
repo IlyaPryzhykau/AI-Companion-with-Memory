@@ -1,5 +1,7 @@
 """Chat endpoint tests."""
 
+from uuid import uuid4
+
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -9,8 +11,20 @@ from app.models.chat import Chat, Message
 def _signup_and_login(client, email: str, password: str = "strongpass123") -> str:
     """Create a user and return access token."""
 
-    client.post("/api/v1/auth/signup", json={"email": email, "password": password})
-    login_response = client.post("/api/v1/auth/login", json={"email": email, "password": password})
+    local, domain = email.split("@", maxsplit=1)
+    unique_email = f"{local}+{uuid4().hex[:8]}@{domain}"
+
+    signup_response = client.post(
+        "/api/v1/auth/signup",
+        json={"email": unique_email, "password": password},
+    )
+    assert signup_response.status_code == 201
+
+    login_response = client.post(
+        "/api/v1/auth/login",
+        json={"email": unique_email, "password": password},
+    )
+    assert login_response.status_code == 200
     return login_response.json()["access_token"]
 
 

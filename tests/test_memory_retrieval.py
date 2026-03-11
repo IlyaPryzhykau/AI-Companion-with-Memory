@@ -71,3 +71,102 @@ def test_retrieval_respects_character_budget(db_session: Session) -> None:
 
     assert context.startswith("Retrieved memory context:")
     assert "..." in context
+
+
+def test_retrieval_is_scoped_to_user_id(db_session: Session) -> None:
+    """Retrieval context should contain only memories of the requested user."""
+
+    user_1 = User(email="retrieval-scope-1@example.com", password_hash="hash")
+    user_2 = User(email="retrieval-scope-2@example.com", password_hash="hash")
+    db_session.add_all([user_1, user_2])
+    db_session.flush()
+
+    db_session.add_all(
+        [
+            VectorMemory(user_id=user_1.id, text="I prefer tea in the evening.", importance=0.7),
+            VectorMemory(user_id=user_2.id, text="I prefer coffee every morning.", importance=0.9),
+        ]
+    )
+    db_session.commit()
+
+    context = build_memory_context(
+        db_session,
+        user_id=user_1.id,
+        user_query="What do I prefer?",
+        max_items=3,
+    )
+
+    assert "prefer tea" in context.lower()
+    assert "prefer coffee" not in context.lower()
+
+
+def test_retrieval_prefers_more_recent_memory_on_score_tie(db_session: Session) -> None:
+    """Recency should break ties when relevance and importance are equal."""
+
+    user = User(email="retrieval-recency@example.com", password_hash="hash")
+    db_session.add(user)
+    db_session.flush()
+
+    now = datetime.now(UTC)
+    db_session.add_all(
+        [
+            VectorMemory(
+                user_id=user.id,
+                text="Project alpha status is pending.",
+                importance=0.6,
+                created_at=now - timedelta(days=6),
+            ),
+            VectorMemory(
+                user_id=user.id,
+                text="Project beta status is pending.",
+                importance=0.6,
+                created_at=now - timedelta(hours=1),
+            ),
+        ]
+    )
+    db_session.commit()
+
+    context = build_memory_context(
+        db_session,
+        user_id=user.id,
+        user_query="Project status update",
+        max_items=1,
+    )
+
+    assert "beta" in context.lower()
+
+
+def test_retrieval_uses_importance_when_query_has_only_stop_words(db_session: Session) -> None:
+    """If query has no meaningful tokens, ranking should fall back to importance/recency."""
+
+    user = User(email="retrieval-stopwords@example.com", password_hash="hash")
+    db_session.add(user)
+    db_session.flush()
+
+    now = datetime.now(UTC)
+    db_session.add_all(
+        [
+            VectorMemory(
+                user_id=user.id,
+                text="low priority memory",
+                importance=0.2,
+                created_at=now - timedelta(hours=1),
+            ),
+            VectorMemory(
+                user_id=user.id,
+                text="high priority memory",
+                importance=0.95,
+                created_at=now - timedelta(hours=1),
+            ),
+        ]
+    )
+    db_session.commit()
+
+    context = build_memory_context(
+        db_session,
+        user_id=user.id,
+        user_query="the and to my",
+        max_items=1,
+    )
+
+    assert "high priority memory" in context.lower()

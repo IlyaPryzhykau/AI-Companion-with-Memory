@@ -1,5 +1,7 @@
 """Memory pipeline tests for chat endpoint."""
 
+from uuid import uuid4
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -9,8 +11,20 @@ from app.models.memory import UserMemory, VectorMemory
 def _signup_and_login(client, email: str, password: str = "strongpass123") -> str:
     """Create a user and return access token."""
 
-    client.post("/api/v1/auth/signup", json={"email": email, "password": password})
-    login_response = client.post("/api/v1/auth/login", json={"email": email, "password": password})
+    local, domain = email.split("@", maxsplit=1)
+    unique_email = f"{local}+{uuid4().hex[:8]}@{domain}"
+
+    signup_response = client.post(
+        "/api/v1/auth/signup",
+        json={"email": unique_email, "password": password},
+    )
+    assert signup_response.status_code == 201
+
+    login_response = client.post(
+        "/api/v1/auth/login",
+        json={"email": unique_email, "password": password},
+    )
+    assert login_response.status_code == 200
     return login_response.json()["access_token"]
 
 
@@ -54,3 +68,17 @@ def test_chat_uses_retrieved_memory_in_follow_up_reply(client) -> None:
 
     assert second.status_code == 200
     assert "Alex" in second.json()["response"]
+
+
+def test_chat_does_not_invent_name_when_none_is_stored(client) -> None:
+    """Identity question should not claim a name when no structured name memory exists."""
+
+    token = _signup_and_login(client, "memory-no-name@example.com")
+    response = client.post(
+        "/api/v1/chat",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"message": "What is my name?"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["response"] == "Echo: What is my name?"
