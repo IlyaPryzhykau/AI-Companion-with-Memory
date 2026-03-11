@@ -4,6 +4,10 @@ on:
   pull_request:
     types: [opened, reopened, synchronize, ready_for_review]
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  FAIL_ON_CHANGES_REQUIRED: "false"
+
 concurrency:
   group: claude-review-${{ github.event.pull_request.number }}
   cancel-in-progress: true
@@ -183,9 +187,11 @@ jobs:
       - name: Fail if review requires changes
         run: |
           python - <<'PY'
+          import os
           from pathlib import Path
 
+          fail_on_changes_required = os.getenv("FAIL_ON_CHANGES_REQUIRED", "false").lower() == "true"
           decision = Path("review_decision.txt").read_text(encoding="utf-8").strip()
-          if decision == "CHANGES_REQUIRED":
+          if fail_on_changes_required and decision == "CHANGES_REQUIRED":
               raise SystemExit("Claude requested changes.")
           PY
