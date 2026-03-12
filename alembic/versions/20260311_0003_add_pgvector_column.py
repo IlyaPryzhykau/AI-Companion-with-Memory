@@ -6,6 +6,7 @@ Create Date: 2026-03-11
 """
 
 from collections.abc import Sequence
+import warnings
 
 import sqlalchemy as sa
 from alembic import op
@@ -43,6 +44,12 @@ def upgrade() -> None:
     if not extension_installed:
         # Keep migration non-blocking when pgvector extension is unavailable.
         # In this mode, application falls back to JSON-backed embedding behavior.
+        warnings.warn(
+            "pgvector extension is unavailable; applying JSON fallback for "
+            "vector_memory.embedding_vector. Semantic retrieval runs in degraded mode.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
         op.add_column("vector_memory", sa.Column("embedding_vector", sa.JSON(), nullable=True))
         return
 

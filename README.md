@@ -606,6 +606,11 @@ copy .env.example .env
 docker compose up --build
 ```
 
+Security note:
+- `.env` is local-only and must never be committed.
+- Keep `OPENAI_API_KEY` only in local/private environment storage.
+- For production, use platform secrets management (for example: CI/CD secrets, Docker/Kubernetes secrets, Vault).
+
 Services:
 
 ```text

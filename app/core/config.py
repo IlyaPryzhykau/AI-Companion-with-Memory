@@ -33,7 +33,13 @@ class Settings(BaseSettings):
         default="local",
         alias="ASSISTANT_PROVIDER",
     )
-    openai_chat_model: str = Field(default="gpt-4o-mini", alias="OPENAI_CHAT_MODEL")
+    openai_chat_model: str = Field(
+        default="gpt-4o-mini",
+        alias="OPENAI_CHAT_MODEL",
+        min_length=3,
+        max_length=128,
+        pattern=r"^[A-Za-z0-9._-]+$",
+    )
     openai_chat_timeout_seconds: float = Field(
         default=15.0,
         alias="OPENAI_CHAT_TIMEOUT_SECONDS",
