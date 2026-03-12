@@ -80,6 +80,24 @@ def test_openai_embedding_provider_rejects_malformed_response(monkeypatch) -> No
         provider.embed("hello", dimensions=64)
 
 
+def test_openai_embedding_provider_rejects_dimension_mismatch(monkeypatch) -> None:
+    """Provider should fail when API returns unexpected embedding dimensions."""
+
+    class _FakeEmbeddingsAPI:
+        def create(self, **kwargs):
+            return SimpleNamespace(data=[SimpleNamespace(embedding=[0.1] * 32)])
+
+    class _FakeOpenAI:
+        def __init__(self, *args, **kwargs) -> None:
+            self.embeddings = _FakeEmbeddingsAPI()
+
+    monkeypatch.setattr("app.services.embeddings.OpenAI", _FakeOpenAI)
+
+    provider = OpenAIEmbeddingProvider(api_key="test-key", model="text-embedding-3-small")
+    with pytest.raises(RuntimeError, match="embedding request failed"):
+        provider.embed("hello", dimensions=64)
+
+
 def test_resolve_embedding_provider_with_invalid_config_falls_back(monkeypatch) -> None:
     """Invalid provider config should return local fallback provider."""
 

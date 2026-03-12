@@ -604,8 +604,6 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```bash
 copy .env.example .env
 docker compose up --build
-# or pass key at runtime (recommended for sensitive envs):
-OPENAI_API_KEY=your_key docker compose up --build
 ```
 
 Security note:
@@ -613,6 +611,11 @@ Security note:
 - Keep `OPENAI_API_KEY` empty in `.env` when possible; inject it at runtime for Docker.
 - Keep `OPENAI_API_KEY` only in local/private environment storage.
 - For production, use platform secrets management (for example: CI/CD secrets, Docker/Kubernetes secrets, Vault).
+- Avoid passing API keys inline in command history. Prefer shell/session env export or secrets managers.
+
+Migration note:
+- If pgvector extension is unavailable, migration `20260311_0003` will fail by default.
+- To explicitly allow degraded JSON fallback mode, set `ALLOW_PGVECTOR_JSON_FALLBACK=true` before migration.
 
 Services:
 

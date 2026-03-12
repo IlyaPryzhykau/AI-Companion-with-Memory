@@ -6,6 +6,7 @@ Create Date: 2026-03-11
 """
 
 from collections.abc import Sequence
+import os
 import warnings
 
 import sqlalchemy as sa
@@ -42,8 +43,19 @@ def upgrade() -> None:
         sa.text("SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'vector')")
     ).scalar_one()
     if not extension_installed:
+        allow_fallback = os.getenv("ALLOW_PGVECTOR_JSON_FALLBACK", "").lower() in {
+            "1",
+            "true",
+            "yes",
+        }
+        if not allow_fallback:
+            raise RuntimeError(
+                "pgvector extension is unavailable. "
+                "Install pgvector extension or set ALLOW_PGVECTOR_JSON_FALLBACK=true "
+                "to apply explicit degraded-mode JSON fallback."
+            )
         # Keep migration non-blocking when pgvector extension is unavailable.
-        # In this mode, application falls back to JSON-backed embedding behavior.
+        # In this explicitly opted-in mode, application falls back to JSON-backed embedding behavior.
         context = op.get_context()
         if context and context.config:
             context.config.print_stdout(

@@ -98,7 +98,7 @@ def generate_assistant_reply(
             text = response.choices[0].message.content or ""
             if text.strip():
                 return text.strip()
-        except (OpenAIError, KeyError, IndexError, TypeError, ValueError) as exc:  # pragma: no cover
+        except (OpenAIError, KeyError, IndexError, TypeError, ValueError) as exc:
             logger.warning(
                 "assistant_openai_call_failed model=%s error_type=%s fallback=echo",
                 settings.openai_chat_model,

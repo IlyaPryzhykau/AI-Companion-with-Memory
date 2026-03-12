@@ -90,6 +90,11 @@ class OpenAIEmbeddingProvider:
                 or not getattr(response.data[0], "embedding", None)
             ):
                 raise ValueError("OpenAI embedding response is missing embedding payload.")
+            if len(response.data[0].embedding) != dimensions:
+                raise ValueError(
+                    "OpenAI embedding response dimension mismatch: "
+                    f"expected {dimensions}, got {len(response.data[0].embedding)}."
+                )
             vector = [float(value) for value in response.data[0].embedding]
             return validate_embedding_vector(vector, expected_dimensions=dimensions)
         except (
