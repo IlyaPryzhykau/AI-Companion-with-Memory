@@ -29,6 +29,10 @@ class Settings(BaseSettings):
     redis_db: int = Field(default=0, alias="REDIS_DB")
 
     openai_api_key: str = Field(default="", alias="OPENAI_API_KEY")
+    primary_llm_provider: Literal["local", "openai", "local_http"] = Field(
+        default="local",
+        alias="PRIMARY_LLM_PROVIDER",
+    )
     assistant_provider: Literal["local", "openai"] = Field(
         default="local",
         alias="ASSISTANT_PROVIDER",
@@ -46,7 +50,23 @@ class Settings(BaseSettings):
         ge=1.0,
         le=120.0,
     )
-    embedding_provider: Literal["local", "openai"] = Field(
+    local_llm_base_url: str = Field(default="http://localhost:11434/v1", alias="LOCAL_LLM_BASE_URL")
+    local_llm_api_key: str = Field(default="local-dev-key", alias="LOCAL_LLM_API_KEY")
+    local_llm_chat_model: str = Field(
+        default="llama3.1:8b",
+        alias="LOCAL_LLM_CHAT_MODEL",
+        min_length=3,
+        max_length=128,
+        pattern=r"^[A-Za-z0-9._:-]+$",
+    )
+    local_llm_embedding_model: str = Field(
+        default="nomic-embed-text",
+        alias="LOCAL_LLM_EMBEDDING_MODEL",
+        min_length=3,
+        max_length=128,
+        pattern=r"^[A-Za-z0-9._:-]+$",
+    )
+    embedding_provider: Literal["local", "openai", "local_http"] = Field(
         default="local",
         alias="EMBEDDING_PROVIDER",
     )

@@ -7,6 +7,7 @@ import pytest
 from app.models.user import User
 from app.services.embeddings import (
     LocalHashEmbeddingProvider,
+    LocalHTTPEmbeddingProvider,
     OpenAIEmbeddingProvider,
     get_embedding_provider,
     resolve_embedding_provider_with_fallback,
@@ -34,6 +35,22 @@ def test_get_embedding_provider_falls_back_to_local_without_openai_key() -> None
     )
     provider = get_embedding_provider(settings=settings)
     assert isinstance(provider, LocalHashEmbeddingProvider)
+
+
+def test_get_embedding_provider_returns_local_http_provider() -> None:
+    """Local HTTP provider config should resolve HTTP-compatible adapter."""
+
+    settings = SimpleNamespace(
+        embedding_provider="local_http",
+        openai_api_key="",
+        openai_embedding_model="text-embedding-3-small",
+        openai_embedding_timeout_seconds=10.0,
+        local_llm_base_url="http://localhost:11434/v1",
+        local_llm_api_key="local-key",
+        local_llm_embedding_model="nomic-embed-text",
+    )
+    provider = get_embedding_provider(settings=settings)
+    assert isinstance(provider, LocalHTTPEmbeddingProvider)
 
 
 def test_openai_embedding_provider_uses_dimensions(monkeypatch) -> None:

@@ -558,14 +558,19 @@ Default PostgreSQL port for this project is:
 Vector retrieval backend can be configured with:
 
 ```text
-ASSISTANT_PROVIDER=local|openai
+PRIMARY_LLM_PROVIDER=local|openai|local_http
+ASSISTANT_PROVIDER=local|openai   # legacy compatibility flag
 OPENAI_CHAT_MODEL=gpt-4o-mini
 OPENAI_CHAT_TIMEOUT_SECONDS=15
-VECTOR_BACKEND=json|pgvector
-VECTOR_EMBEDDING_DIMENSIONS=64
-EMBEDDING_PROVIDER=local|openai
+LOCAL_LLM_BASE_URL=http://localhost:11434/v1
+LOCAL_LLM_API_KEY=local-dev-key
+LOCAL_LLM_CHAT_MODEL=llama3.1:8b
+LOCAL_LLM_EMBEDDING_MODEL=nomic-embed-text
+EMBEDDING_PROVIDER=local|openai|local_http
 OPENAI_EMBEDDING_MODEL=text-embedding-3-small
 OPENAI_EMBEDDING_TIMEOUT_SECONDS=10
+VECTOR_BACKEND=json|pgvector
+VECTOR_EMBEDDING_DIMENSIONS=64
 ```
 
 Current implementation supports `VECTOR_EMBEDDING_DIMENSIONS=64` only.

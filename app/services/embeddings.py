@@ -119,6 +119,66 @@ class OpenAIEmbeddingProvider:
             )
 
 
+@dataclass(frozen=True)
+class LocalHTTPEmbeddingProvider:
+    """OpenAI-compatible local HTTP embedding provider."""
+
+    base_url: str
+    api_key: str
+    model: str
+    timeout_seconds: float = 10.0
+    name: str = "local_http"
+
+    def embed(self, text: str, dimensions: int) -> list[float]:
+        """Generate embedding from local OpenAI-compatible API and validate output shape."""
+
+        client = OpenAI(
+            base_url=self.base_url,
+            api_key=self.api_key,
+            timeout=self.timeout_seconds,
+        )
+        try:
+            response = client.embeddings.create(
+                model=self.model,
+                input=text,
+                dimensions=dimensions,
+            )
+            if (
+                not getattr(response, "data", None)
+                or not response.data
+                or not getattr(response.data[0], "embedding", None)
+            ):
+                raise ValueError("Local HTTP embedding response is missing embedding payload.")
+            if len(response.data[0].embedding) != dimensions:
+                raise ValueError(
+                    "Local HTTP embedding response dimension mismatch: "
+                    f"expected {dimensions}, got {len(response.data[0].embedding)}."
+                )
+            vector = [float(value) for value in response.data[0].embedding]
+            return validate_embedding_vector(vector, expected_dimensions=dimensions)
+        except (
+            AuthenticationError,
+            RateLimitError,
+            APITimeoutError,
+            APIConnectionError,
+            APIError,
+            APIStatusError,
+            ValueError,
+            TypeError,
+            KeyError,
+            IndexError,
+        ) as exc:
+            logger.warning(
+                "local_http_embedding_call_failed model=%s base_url=%s error_type=%s",
+                self.model,
+                self.base_url,
+                type(exc).__name__,
+            )
+            raise RuntimeError(
+                f"Local HTTP embedding request failed for model '{self.model}'."
+            )
+
+
 def get_embedding_provider(settings: Settings | None = None) -> EmbeddingProvider:
     """Resolve embedding provider from settings with safe local fallback."""
 
@@ -126,9 +186,10 @@ def get_embedding_provider(settings: Settings | None = None) -> EmbeddingProvide
         settings = get_settings()
 
     provider = settings.embedding_provider.lower().strip()
-    if provider not in {"local", "openai"}:
+    if provider not in {"local", "openai", "local_http"}:
         raise ValueError(
-            f"Unsupported EMBEDDING_PROVIDER '{settings.embedding_provider}'. Use 'local' or 'openai'."
+            f"Unsupported EMBEDDING_PROVIDER '{settings.embedding_provider}'. "
+            "Use 'local', 'openai', or 'local_http'."
         )
 
     if provider == "openai":
@@ -138,6 +199,13 @@ def get_embedding_provider(settings: Settings | None = None) -> EmbeddingProvide
         return OpenAIEmbeddingProvider(
             api_key=settings.openai_api_key,
             model=settings.openai_embedding_model,
+            timeout_seconds=settings.openai_embedding_timeout_seconds,
+        )
+    if provider == "local_http":
+        return LocalHTTPEmbeddingProvider(
+            base_url=settings.local_llm_base_url,
+            api_key=settings.local_llm_api_key,
+            model=settings.local_llm_embedding_model,
             timeout_seconds=settings.openai_embedding_timeout_seconds,
         )
 
