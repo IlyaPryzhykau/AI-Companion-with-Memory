@@ -2,8 +2,9 @@
 
 from functools import lru_cache
 from typing import Literal
+from urllib.parse import urlparse
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -29,6 +30,10 @@ class Settings(BaseSettings):
     redis_db: int = Field(default=0, alias="REDIS_DB")
 
     openai_api_key: str = Field(default="", alias="OPENAI_API_KEY")
+    primary_llm_provider: Literal["local", "openai", "local_http"] = Field(
+        default="local",
+        alias="PRIMARY_LLM_PROVIDER",
+    )
     assistant_provider: Literal["local", "openai"] = Field(
         default="local",
         alias="ASSISTANT_PROVIDER",
@@ -46,7 +51,35 @@ class Settings(BaseSettings):
         ge=1.0,
         le=120.0,
     )
-    embedding_provider: Literal["local", "openai"] = Field(
+    local_llm_base_url: str = Field(default="http://localhost:11434/v1", alias="LOCAL_LLM_BASE_URL")
+    local_llm_api_key: str = Field(default="local-dev-key", alias="LOCAL_LLM_API_KEY")
+    local_llm_chat_model: str = Field(
+        default="llama3.1:8b",
+        alias="LOCAL_LLM_CHAT_MODEL",
+        min_length=3,
+        max_length=128,
+        pattern=r"^[A-Za-z0-9._:-]+$",
+    )
+    local_llm_chat_timeout_seconds: float = Field(
+        default=20.0,
+        alias="LOCAL_LLM_CHAT_TIMEOUT_SECONDS",
+        ge=1.0,
+        le=300.0,
+    )
+    local_llm_embedding_model: str = Field(
+        default="nomic-embed-text",
+        alias="LOCAL_LLM_EMBEDDING_MODEL",
+        min_length=3,
+        max_length=128,
+        pattern=r"^[A-Za-z0-9._:-]+$",
+    )
+    local_llm_embedding_timeout_seconds: float = Field(
+        default=20.0,
+        alias="LOCAL_LLM_EMBEDDING_TIMEOUT_SECONDS",
+        ge=1.0,
+        le=300.0,
+    )
+    embedding_provider: Literal["local", "openai", "local_http"] = Field(
         default="local",
         alias="EMBEDDING_PROVIDER",
     )
@@ -115,6 +148,35 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         extra="ignore",
     )
+
+    @field_validator("local_llm_base_url")
+    @classmethod
+    def validate_local_llm_base_url(cls, value: str) -> str:
+        """Validate local LLM base URL format at settings load time."""
+
+        base_url = value.strip()
+        parsed = urlparse(base_url)
+        if not base_url or parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            raise ValueError("LOCAL_LLM_BASE_URL must be an absolute http(s) URL.")
+        return base_url
+
+    @field_validator(
+        "openai_chat_model",
+        "local_llm_chat_model",
+        "local_llm_embedding_model",
+        "openai_embedding_model",
+        mode="before",
+    )
+    @classmethod
+    def validate_model_names_not_blank(cls, value: str) -> str:
+        """Normalize and reject blank model names."""
+
+        if not isinstance(value, str):
+            raise TypeError("Model name must be a string.")
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("Model name must be non-empty.")
+        return normalized
 
 
 @lru_cache(maxsize=1)

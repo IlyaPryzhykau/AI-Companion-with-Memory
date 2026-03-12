@@ -3,9 +3,7 @@
 import logging
 import re
 
-from openai import OpenAI, OpenAIError
-
-from app.core.config import get_settings
+from app.services.chat_providers import resolve_chat_provider_with_fallback
 
 logger = logging.getLogger(__name__)
 
@@ -79,30 +77,22 @@ def generate_assistant_reply(
         if remembered_name:
             return f"You told me your name is {remembered_name}."
 
-    settings = get_settings()
-    provider = settings.assistant_provider.lower().strip()
-    if provider == "openai" and settings.openai_api_key.strip():
-        try:
-            client = OpenAI(
-                api_key=settings.openai_api_key,
-                timeout=settings.openai_chat_timeout_seconds,
-            )
-            response = client.chat.completions.create(
-                model=settings.openai_chat_model,
-                messages=_build_openai_messages(
-                    user_message=user_message,
-                    memory_context=memory_context,
-                    chat_history=chat_history,
-                ),
-            )
-            text = response.choices[0].message.content or ""
-            if text.strip():
-                return text.strip()
-        except (OpenAIError, KeyError, IndexError, TypeError, ValueError) as exc:
-            logger.warning(
-                "assistant_openai_call_failed model=%s error_type=%s fallback=echo",
-                settings.openai_chat_model,
-                type(exc).__name__,
-            )
-
+    provider = resolve_chat_provider_with_fallback()
+    try:
+        text = provider.generate(
+            messages=_build_openai_messages(
+                user_message=user_message,
+                memory_context=memory_context,
+                chat_history=chat_history,
+            ),
+            user_message=user_message,
+        )
+        if text.strip():
+            return text.strip()
+    except RuntimeError as exc:
+        logger.warning(
+            "assistant_provider_call_failed provider=%s error_type=%s fallback=echo",
+            getattr(provider, "name", type(provider).__name__),
+            type(exc).__name__,
+        )
     return f"Echo: {user_message.strip()}"

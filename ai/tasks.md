@@ -7,6 +7,20 @@
 - Add environment-based runtime routing (`PRIMARY_LLM_PROVIDER`, `EMBEDDING_PROVIDER`).
 - Add integration tests for provider selection and failure behavior.
 
+Status: DONE
+
+Implemented in:
+
+- `app/services/chat_providers.py`
+- `app/services/embeddings.py`
+- `app/services/llm.py`
+- `app/core/config.py`
+- `tests/test_chat_providers.py`
+- `tests/test_embeddings.py`
+- `tests/test_llm.py`
+- `.env.example`
+- `README.md`
+
 **Definition of done**
 - `/api/v1/chat` behaves consistently for `openai` and `local` modes.
 - Error mapping is documented and tested.
