@@ -111,6 +111,25 @@ def test_get_embedding_provider_accepts_https_url_outside_development() -> None:
     assert isinstance(provider, LocalHTTPEmbeddingProvider)
 
 
+def test_get_embedding_provider_rejects_empty_api_key_for_local_http() -> None:
+    """local_http embedding provider should fail fast on empty API key."""
+
+    settings = SimpleNamespace(
+        app_env="development",
+        embedding_provider="local_http",
+        openai_api_key="",
+        openai_embedding_model="text-embedding-3-small",
+        openai_embedding_timeout_seconds=10.0,
+        local_llm_base_url="http://localhost:11434/v1",
+        local_llm_api_key="   ",
+        local_llm_embedding_model="nomic-embed-text",
+        local_llm_embedding_timeout_seconds=20.0,
+    )
+
+    with pytest.raises(ValueError, match="LOCAL_LLM_API_KEY"):
+        get_embedding_provider(settings=settings)
+
+
 def test_resolve_embedding_provider_with_invalid_local_http_url_falls_back(monkeypatch) -> None:
     """Resolver should return local fallback when local_http URL is invalid."""
 

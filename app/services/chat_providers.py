@@ -20,6 +20,19 @@ from app.core.config import Settings, get_settings
 
 logger = logging.getLogger(__name__)
 
+_PROVIDER_EXCEPTIONS = (
+    AuthenticationError,
+    RateLimitError,
+    APITimeoutError,
+    APIConnectionError,
+    APIError,
+    APIStatusError,
+    ValueError,
+    TypeError,
+    KeyError,
+    IndexError,
+)
+
 
 def _validate_http_base_url(value: str, setting_name: str, app_env: str) -> str:
     """Validate OpenAI-compatible HTTP base URL."""
@@ -78,18 +91,7 @@ class OpenAIChatProvider:
                 messages=messages,
             )
             return (response.choices[0].message.content or "").strip()
-        except (
-            AuthenticationError,
-            RateLimitError,
-            APITimeoutError,
-            APIConnectionError,
-            APIError,
-            APIStatusError,
-            ValueError,
-            TypeError,
-            KeyError,
-            IndexError,
-        ) as exc:
+        except _PROVIDER_EXCEPTIONS as exc:
             logger.warning(
                 "openai_chat_call_failed model=%s error_type=%s",
                 self.model,
@@ -122,22 +124,10 @@ class LocalHTTPChatProvider:
                 messages=messages,
             )
             return (response.choices[0].message.content or "").strip()
-        except (
-            AuthenticationError,
-            RateLimitError,
-            APITimeoutError,
-            APIConnectionError,
-            APIError,
-            APIStatusError,
-            ValueError,
-            TypeError,
-            KeyError,
-            IndexError,
-        ) as exc:
+        except _PROVIDER_EXCEPTIONS as exc:
             logger.warning(
-                "local_http_chat_call_failed model=%s base_url=%s error_type=%s",
+                "local_http_chat_call_failed model=%s error_type=%s",
                 self.model,
-                self.base_url,
                 type(exc).__name__,
             )
             raise RuntimeError(f"Local HTTP chat request failed for model '{self.model}'.")
@@ -169,6 +159,10 @@ def get_chat_provider(settings: Settings | None = None) -> ChatProvider:
             timeout_seconds=settings.openai_chat_timeout_seconds,
         )
     if provider == "local_http":
+        if not settings.local_llm_api_key.strip():
+            raise ValueError(
+                "LOCAL_LLM_API_KEY must be non-empty when PRIMARY_LLM_PROVIDER=local_http."
+            )
         base_url = _validate_http_base_url(
             settings.local_llm_base_url,
             "LOCAL_LLM_BASE_URL",

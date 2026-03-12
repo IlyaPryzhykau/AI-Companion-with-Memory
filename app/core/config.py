@@ -2,8 +2,9 @@
 
 from functools import lru_cache
 from typing import Literal
+from urllib.parse import urlparse
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -147,6 +148,17 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         extra="ignore",
     )
+
+    @field_validator("local_llm_base_url")
+    @classmethod
+    def validate_local_llm_base_url(cls, value: str) -> str:
+        """Validate local LLM base URL format at settings load time."""
+
+        base_url = value.strip()
+        parsed = urlparse(base_url)
+        if not base_url or parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            raise ValueError("LOCAL_LLM_BASE_URL must be an absolute http(s) URL.")
+        return base_url
 
 
 @lru_cache(maxsize=1)

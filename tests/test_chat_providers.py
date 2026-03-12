@@ -103,6 +103,25 @@ def test_get_chat_provider_accepts_https_url_outside_development() -> None:
     assert isinstance(provider, LocalHTTPChatProvider)
 
 
+def test_get_chat_provider_rejects_empty_api_key_for_local_http() -> None:
+    """local_http provider should fail fast on empty LOCAL_LLM_API_KEY."""
+
+    settings = SimpleNamespace(
+        app_env="development",
+        primary_llm_provider="local_http",
+        openai_api_key="",
+        openai_chat_model="gpt-4o-mini",
+        openai_chat_timeout_seconds=15.0,
+        local_llm_base_url="http://localhost:11434/v1",
+        local_llm_api_key="   ",
+        local_llm_chat_model="llama3.1:8b",
+        local_llm_chat_timeout_seconds=20.0,
+    )
+
+    with pytest.raises(ValueError, match="LOCAL_LLM_API_KEY"):
+        get_chat_provider(settings=settings)
+
+
 def test_resolve_chat_provider_with_invalid_local_http_url_falls_back(monkeypatch) -> None:
     """Resolver should return local fallback when local_http URL is invalid."""
 
