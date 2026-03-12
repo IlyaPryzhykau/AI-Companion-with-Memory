@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
+from app.core.config import get_settings
 from app.db.base import Base
 from app.db.session import get_db_session
 from app.main import app
@@ -27,6 +28,18 @@ def reset_database() -> Generator[None, None, None]:
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
     yield
+
+
+@pytest.fixture(autouse=True)
+def force_local_assistant_provider(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, None]:
+    """Keep tests deterministic by forcing local assistant behavior."""
+
+    monkeypatch.setenv("ASSISTANT_PROVIDER", "local")
+    get_settings.cache_clear()
+    try:
+        yield
+    finally:
+        get_settings.cache_clear()
 
 
 @pytest.fixture

@@ -97,9 +97,13 @@ def test_chat_memory_context_influences_answer_generation(client, monkeypatch) -
     )
     assert seed.status_code == 200
 
-    def _fake_generate_assistant_reply(user_message: str, memory_context: str | None = None) -> str:
+    def _fake_generate_assistant_reply(
+        user_message: str,
+        memory_context: str | None = None,
+        chat_history: list[tuple[str, str]] | None = None,
+    ) -> str:
         if "focus" in user_message.lower():
-            return f"Context seen: {memory_context or ''}"
+            return f"Context seen: {memory_context or ''} history={len(chat_history or [])}"
         return f"Echo: {user_message}"
 
     monkeypatch.setattr(

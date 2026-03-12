@@ -21,7 +21,56 @@ def _extract_name_from_memory(memory_context: str | None) -> str | None:
     return match.group(1).strip()
 
 
-def generate_assistant_reply(user_message: str, memory_context: str | None = None) -> str:
+def _build_openai_messages(
+    user_message: str,
+    memory_context: str | None,
+    chat_history: list[tuple[str, str]] | None,
+) -> list[dict[str, str]]:
+    """Build chat-completions messages with history and anti-repeat greeting policy."""
+
+    messages: list[dict[str, str]] = [
+        {
+            "role": "system",
+            "content": (
+                "You are a helpful AI companion. "
+                "If this conversation is already in progress, do not greet again. "
+                "Continue naturally from prior context."
+            ),
+        }
+    ]
+
+    if memory_context:
+        messages.append(
+            {
+                "role": "system",
+                "content": f"Memory context:\n{memory_context}",
+            }
+        )
+
+    normalized_history: list[tuple[str, str]] = []
+    for role, content in chat_history or []:
+        role_value = role.lower().strip()
+        if role_value not in {"user", "assistant"}:
+            continue
+        text = content.strip()
+        if not text:
+            continue
+        normalized_history.append((role_value, text))
+
+    for role, content in normalized_history:
+        messages.append({"role": role, "content": content})
+
+    if not normalized_history or normalized_history[-1] != ("user", user_message.strip()):
+        messages.append({"role": "user", "content": user_message.strip()})
+
+    return messages
+
+
+def generate_assistant_reply(
+    user_message: str,
+    memory_context: str | None = None,
+    chat_history: list[tuple[str, str]] | None = None,
+) -> str:
     """Return assistant reply using configured provider with safe local fallback."""
 
     normalized = user_message.strip().lower()
@@ -38,16 +87,13 @@ def generate_assistant_reply(user_message: str, memory_context: str | None = Non
                 api_key=settings.openai_api_key,
                 timeout=settings.openai_chat_timeout_seconds,
             )
-            prompt = user_message.strip()
-            if memory_context:
-                prompt = (
-                    "Use the following memory context when helpful.\n\n"
-                    f"{memory_context}\n\n"
-                    f"User message: {user_message.strip()}"
-                )
             response = client.chat.completions.create(
                 model=settings.openai_chat_model,
-                messages=[{"role": "user", "content": prompt}],
+                messages=_build_openai_messages(
+                    user_message=user_message,
+                    memory_context=memory_context,
+                    chat_history=chat_history,
+                ),
             )
             text = response.choices[0].message.content or ""
             if text.strip():
