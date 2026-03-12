@@ -551,6 +551,9 @@ Default PostgreSQL port for this project is:
 Vector retrieval backend can be configured with:
 
 ```text
+ASSISTANT_PROVIDER=local|openai
+OPENAI_CHAT_MODEL=gpt-4o-mini
+OPENAI_CHAT_TIMEOUT_SECONDS=15
 VECTOR_BACKEND=json|pgvector
 VECTOR_EMBEDDING_DIMENSIONS=64
 EMBEDDING_PROVIDER=local|openai
@@ -561,6 +564,8 @@ OPENAI_EMBEDDING_TIMEOUT_SECONDS=10
 Current implementation supports `VECTOR_EMBEDDING_DIMENSIONS=64` only.
 If `EMBEDDING_PROVIDER=openai` is configured without a valid `OPENAI_API_KEY`,
 the service falls back to local deterministic embeddings to keep retrieval available.
+If `ASSISTANT_PROVIDER=openai` is configured without a valid `OPENAI_API_KEY`
+or the model call fails, the service falls back to local echo-style behavior.
 
 Memory retrieval policy is configurable via environment variables:
 

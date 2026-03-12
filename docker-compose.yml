@@ -30,7 +30,7 @@ services:
       dockerfile: Dockerfile
     container_name: ai_companion_api
     env_file:
-      - .env.docker
+      - .env
     ports:
       - "8000:8000"
     depends_on:
