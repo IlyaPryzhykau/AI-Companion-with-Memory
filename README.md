@@ -553,9 +553,14 @@ Vector retrieval backend can be configured with:
 ```text
 VECTOR_BACKEND=json|pgvector
 VECTOR_EMBEDDING_DIMENSIONS=64
+EMBEDDING_PROVIDER=local|openai
+OPENAI_EMBEDDING_MODEL=text-embedding-3-small
+OPENAI_EMBEDDING_TIMEOUT_SECONDS=10
 ```
 
 Current implementation supports `VECTOR_EMBEDDING_DIMENSIONS=64` only.
+If `EMBEDDING_PROVIDER=openai` is configured without a valid `OPENAI_API_KEY`,
+the service falls back to local deterministic embeddings to keep retrieval available.
 
 Memory retrieval policy is configurable via environment variables:
 

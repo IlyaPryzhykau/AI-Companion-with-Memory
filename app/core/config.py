@@ -28,6 +28,17 @@ class Settings(BaseSettings):
     redis_db: int = Field(default=0, alias="REDIS_DB")
 
     openai_api_key: str = Field(default="", alias="OPENAI_API_KEY")
+    embedding_provider: str = Field(default="local", alias="EMBEDDING_PROVIDER")
+    openai_embedding_model: str = Field(
+        default="text-embedding-3-small",
+        alias="OPENAI_EMBEDDING_MODEL",
+    )
+    openai_embedding_timeout_seconds: float = Field(
+        default=10.0,
+        alias="OPENAI_EMBEDDING_TIMEOUT_SECONDS",
+        ge=1.0,
+        le=60.0,
+    )
     vector_backend: str = Field(default="json", alias="VECTOR_BACKEND")
     vector_embedding_dimensions: int = Field(default=64, alias="VECTOR_EMBEDDING_DIMENSIONS")
     memory_retrieval_top_k: int = Field(
