@@ -91,6 +91,7 @@ This document defines coding standards for this repository and for AI coding age
 - If requirements are unclear, document open questions before large edits.
 - Before any `git push`, ask for explicit user confirmation.
 - Do not push automatically after local edits, tests, or commits.
+- PR-only workflow is mandatory: do not push direct changes to `main`; use branch + PR.
 - After first push of a new feature/fix branch, create a PR automatically unless user says not to.
 - PR description must be detailed and include:
   - scope,
@@ -105,3 +106,4 @@ This document defines coding standards for this repository and for AI coding age
   - which files changed,
   - which tests were run and results.
 - While processing review feedback, prioritize the latest review comment unless the user asks otherwise.
+- Keep `AI_PROJECT.md` up to date whenever project architecture, core runtime flows, or key technical decisions change.

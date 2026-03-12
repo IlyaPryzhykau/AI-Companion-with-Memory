@@ -39,3 +39,10 @@ Responsibilities:
 - Detect bugs
 - Suggest improvements
 - Verify tests and architecture compliance
+
+## Workflow Policy
+
+- PR-only workflow is mandatory.
+- Do not push direct changes to `main`.
+- All changes must be done in a branch and merged via pull request.
+- `AI_PROJECT.md` must be kept up to date whenever architecture, core flows, or stack decisions change.
