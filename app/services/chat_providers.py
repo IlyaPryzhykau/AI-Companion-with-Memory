@@ -3,52 +3,14 @@
 import logging
 from dataclasses import dataclass
 from typing import Protocol
-from urllib.parse import urlparse
 
-from openai import (
-    APIConnectionError,
-    APIError,
-    APIStatusError,
-    APITimeoutError,
-    AuthenticationError,
-    OpenAI,
-    RateLimitError,
-)
+from openai import OpenAI
 from pydantic import ValidationError
 
 from app.core.config import Settings, get_settings
+from app.services.provider_utils import PROVIDER_EXCEPTIONS, validate_http_base_url
 
 logger = logging.getLogger(__name__)
-
-_PROVIDER_EXCEPTIONS = (
-    AuthenticationError,
-    RateLimitError,
-    APITimeoutError,
-    APIConnectionError,
-    APIError,
-    APIStatusError,
-    ValueError,
-    TypeError,
-    KeyError,
-    IndexError,
-)
-
-
-def _validate_http_base_url(value: str, setting_name: str, app_env: str) -> str:
-    """Validate OpenAI-compatible HTTP base URL."""
-
-    base_url = value.strip()
-    parsed = urlparse(base_url)
-    if not base_url or parsed.scheme not in {"http", "https"} or not parsed.netloc:
-        raise ValueError(
-            f"Invalid {setting_name} value. Expected absolute http(s) URL, got: {value!r}."
-        )
-    if parsed.scheme == "http" and app_env.lower().strip() not in {"development", "dev", "local", "test"}:
-        raise ValueError(
-            f"Unsafe {setting_name} value for APP_ENV={app_env!r}. "
-            "Use https URL outside local/development environments."
-        )
-    return base_url
 
 
 class ChatProvider(Protocol):
@@ -84,14 +46,14 @@ class OpenAIChatProvider:
     def generate(self, messages: list[dict[str, str]], user_message: str) -> str:
         """Generate assistant reply from OpenAI chat completions."""
 
-        client = OpenAI(api_key=self.api_key, timeout=self.timeout_seconds)
         try:
+            client = OpenAI(api_key=self.api_key, timeout=self.timeout_seconds)
             response = client.chat.completions.create(
                 model=self.model,
                 messages=messages,
             )
             return (response.choices[0].message.content or "").strip()
-        except _PROVIDER_EXCEPTIONS as exc:
+        except PROVIDER_EXCEPTIONS as exc:
             logger.warning(
                 "openai_chat_call_failed model=%s error_type=%s",
                 self.model,
@@ -113,18 +75,18 @@ class LocalHTTPChatProvider:
     def generate(self, messages: list[dict[str, str]], user_message: str) -> str:
         """Generate assistant reply using local OpenAI-compatible endpoint."""
 
-        client = OpenAI(
-            base_url=self.base_url,
-            api_key=self.api_key,
-            timeout=self.timeout_seconds,
-        )
         try:
+            client = OpenAI(
+                base_url=self.base_url,
+                api_key=self.api_key,
+                timeout=self.timeout_seconds,
+            )
             response = client.chat.completions.create(
                 model=self.model,
                 messages=messages,
             )
             return (response.choices[0].message.content or "").strip()
-        except _PROVIDER_EXCEPTIONS as exc:
+        except PROVIDER_EXCEPTIONS as exc:
             logger.warning(
                 "local_http_chat_call_failed model=%s error_type=%s",
                 self.model,
@@ -163,7 +125,7 @@ def get_chat_provider(settings: Settings | None = None) -> ChatProvider:
             raise ValueError(
                 "LOCAL_LLM_API_KEY must be non-empty when PRIMARY_LLM_PROVIDER=local_http."
             )
-        base_url = _validate_http_base_url(
+        base_url = validate_http_base_url(
             settings.local_llm_base_url,
             "LOCAL_LLM_BASE_URL",
             getattr(settings, "app_env", "development"),

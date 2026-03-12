@@ -212,6 +212,38 @@ def test_openai_embedding_provider_rejects_dimension_mismatch(monkeypatch) -> No
         provider.embed("hello", dimensions=64)
 
 
+def test_openai_embedding_provider_maps_client_init_failures_to_runtime_error(monkeypatch) -> None:
+    """OpenAI embedding provider should map client init errors to RuntimeError."""
+
+    class _BrokenOpenAI:
+        def __init__(self, *args, **kwargs) -> None:
+            raise ValueError("bad client init")
+
+    monkeypatch.setattr("app.services.embeddings.OpenAI", _BrokenOpenAI)
+
+    provider = OpenAIEmbeddingProvider(api_key="test-key", model="text-embedding-3-small")
+    with pytest.raises(RuntimeError, match="embedding request failed"):
+        provider.embed("hello", dimensions=64)
+
+
+def test_local_http_embedding_provider_maps_client_init_failures_to_runtime_error(monkeypatch) -> None:
+    """Local HTTP embedding provider should map client init errors to RuntimeError."""
+
+    class _BrokenOpenAI:
+        def __init__(self, *args, **kwargs) -> None:
+            raise ValueError("bad client init")
+
+    monkeypatch.setattr("app.services.embeddings.OpenAI", _BrokenOpenAI)
+
+    provider = LocalHTTPEmbeddingProvider(
+        base_url="http://localhost:11434/v1",
+        api_key="local-key",
+        model="nomic-embed-text",
+    )
+    with pytest.raises(RuntimeError, match="embedding request failed"):
+        provider.embed("hello", dimensions=64)
+
+
 def test_resolve_embedding_provider_with_invalid_config_falls_back(monkeypatch) -> None:
     """Invalid provider config should return local fallback provider."""
 

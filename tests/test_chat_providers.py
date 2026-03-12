@@ -230,3 +230,35 @@ def test_local_http_chat_provider_maps_failures_to_runtime_error(monkeypatch) ->
     )
     with pytest.raises(RuntimeError, match="Local HTTP chat request failed"):
         provider.generate(messages=[{"role": "user", "content": "hello"}], user_message="hello")
+
+
+def test_openai_chat_provider_maps_client_init_failures_to_runtime_error(monkeypatch) -> None:
+    """OpenAI provider should map client initialization failure to RuntimeError."""
+
+    class _BrokenOpenAI:
+        def __init__(self, *args, **kwargs) -> None:
+            raise ValueError("bad client init")
+
+    monkeypatch.setattr("app.services.chat_providers.OpenAI", _BrokenOpenAI)
+
+    provider = OpenAIChatProvider(api_key="test-key", model="gpt-4o-mini")
+    with pytest.raises(RuntimeError, match="OpenAI chat request failed"):
+        provider.generate(messages=[{"role": "user", "content": "hello"}], user_message="hello")
+
+
+def test_local_http_chat_provider_maps_client_init_failures_to_runtime_error(monkeypatch) -> None:
+    """Local HTTP provider should map client initialization failure to RuntimeError."""
+
+    class _BrokenOpenAI:
+        def __init__(self, *args, **kwargs) -> None:
+            raise ValueError("bad client init")
+
+    monkeypatch.setattr("app.services.chat_providers.OpenAI", _BrokenOpenAI)
+
+    provider = LocalHTTPChatProvider(
+        base_url="http://localhost:11434/v1",
+        api_key="local-key",
+        model="llama3.1:8b",
+    )
+    with pytest.raises(RuntimeError, match="Local HTTP chat request failed"):
+        provider.generate(messages=[{"role": "user", "content": "hello"}], user_message="hello")

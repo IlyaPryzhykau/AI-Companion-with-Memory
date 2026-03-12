@@ -160,6 +160,24 @@ class Settings(BaseSettings):
             raise ValueError("LOCAL_LLM_BASE_URL must be an absolute http(s) URL.")
         return base_url
 
+    @field_validator(
+        "openai_chat_model",
+        "local_llm_chat_model",
+        "local_llm_embedding_model",
+        "openai_embedding_model",
+        mode="before",
+    )
+    @classmethod
+    def validate_model_names_not_blank(cls, value: str) -> str:
+        """Normalize and reject blank model names."""
+
+        if not isinstance(value, str):
+            raise TypeError("Model name must be a string.")
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("Model name must be non-empty.")
+        return normalized
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
