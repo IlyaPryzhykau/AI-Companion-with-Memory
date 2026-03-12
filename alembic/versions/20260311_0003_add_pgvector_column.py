@@ -44,6 +44,13 @@ def upgrade() -> None:
     if not extension_installed:
         # Keep migration non-blocking when pgvector extension is unavailable.
         # In this mode, application falls back to JSON-backed embedding behavior.
+        context = op.get_context()
+        if context and context.config:
+            context.config.print_stdout(
+                "WARNING: pgvector extension unavailable. "
+                "Applying JSON fallback for vector_memory.embedding_vector "
+                "(semantic retrieval degraded mode)."
+            )
         warnings.warn(
             "pgvector extension is unavailable; applying JSON fallback for "
             "vector_memory.embedding_vector. Semantic retrieval runs in degraded mode.",

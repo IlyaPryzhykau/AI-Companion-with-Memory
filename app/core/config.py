@@ -53,6 +53,9 @@ class Settings(BaseSettings):
     openai_embedding_model: str = Field(
         default="text-embedding-3-small",
         alias="OPENAI_EMBEDDING_MODEL",
+        min_length=3,
+        max_length=128,
+        pattern=r"^[A-Za-z0-9._-]+$",
     )
     openai_embedding_timeout_seconds: float = Field(
         default=10.0,

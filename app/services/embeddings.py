@@ -6,7 +6,14 @@ import math
 from dataclasses import dataclass
 from typing import Protocol
 
-from openai import OpenAI
+from openai import (
+    APIConnectionError,
+    APIStatusError,
+    APITimeoutError,
+    AuthenticationError,
+    OpenAI,
+    RateLimitError,
+)
 from pydantic import ValidationError
 
 from app.core.config import Settings, get_settings
@@ -78,6 +85,21 @@ class OpenAIEmbeddingProvider:
             )
             vector = [float(value) for value in response.data[0].embedding]
             return validate_embedding_vector(vector, expected_dimensions=dimensions)
+        except (
+            AuthenticationError,
+            RateLimitError,
+            APITimeoutError,
+            APIConnectionError,
+            APIStatusError,
+        ) as exc:
+            logger.warning(
+                "openai_embedding_call_failed model=%s error_type=%s",
+                self.model,
+                type(exc).__name__,
+            )
+            raise RuntimeError(
+                f"OpenAI embedding request failed for model '{self.model}'."
+            )
         except Exception as exc:
             logger.warning(
                 "openai_embedding_call_failed model=%s error_type=%s",
