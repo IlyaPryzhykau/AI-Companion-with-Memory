@@ -9,6 +9,7 @@ from app.services.chat_providers import (
     LocalHTTPChatProvider,
     OpenAIChatProvider,
     get_chat_provider,
+    resolve_chat_provider_with_fallback,
 )
 
 
@@ -39,9 +40,11 @@ def test_get_chat_provider_returns_local_http_provider() -> None:
         local_llm_base_url="http://localhost:11434/v1",
         local_llm_api_key="local-key",
         local_llm_chat_model="llama3.1:8b",
+        local_llm_chat_timeout_seconds=20.0,
     )
     provider = get_chat_provider(settings=settings)
     assert isinstance(provider, LocalHTTPChatProvider)
+    assert provider.timeout_seconds == 20.0
 
 
 def test_get_chat_provider_rejects_invalid_local_http_base_url() -> None:
@@ -55,10 +58,33 @@ def test_get_chat_provider_rejects_invalid_local_http_base_url() -> None:
         local_llm_base_url="localhost:11434/v1",
         local_llm_api_key="local-key",
         local_llm_chat_model="llama3.1:8b",
+        local_llm_chat_timeout_seconds=20.0,
     )
 
     with pytest.raises(ValueError, match="LOCAL_LLM_BASE_URL"):
         get_chat_provider(settings=settings)
+
+
+def test_resolve_chat_provider_with_invalid_local_http_url_falls_back(monkeypatch) -> None:
+    """Resolver should return local fallback when local_http URL is invalid."""
+
+    monkeypatch.setattr(
+        "app.services.chat_providers.get_settings",
+        lambda: SimpleNamespace(
+            primary_llm_provider="local_http",
+            assistant_provider="local",
+            model_fields_set={"primary_llm_provider"},
+            openai_api_key="",
+            openai_chat_model="gpt-4o-mini",
+            openai_chat_timeout_seconds=15.0,
+            local_llm_base_url="localhost:11434/v1",
+            local_llm_api_key="local-key",
+            local_llm_chat_model="llama3.1:8b",
+            local_llm_chat_timeout_seconds=20.0,
+        ),
+    )
+    provider = resolve_chat_provider_with_fallback()
+    assert isinstance(provider, EchoChatProvider)
 
 
 def test_get_chat_provider_uses_legacy_assistant_provider_when_primary_not_set() -> None:

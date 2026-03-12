@@ -172,7 +172,7 @@ def get_chat_provider(settings: Settings | None = None) -> ChatProvider:
             base_url=base_url,
             api_key=settings.local_llm_api_key,
             model=settings.local_llm_chat_model,
-            timeout_seconds=settings.openai_chat_timeout_seconds,
+            timeout_seconds=settings.local_llm_chat_timeout_seconds,
         )
     if provider == "local":
         return EchoChatProvider()

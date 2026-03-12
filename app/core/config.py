@@ -59,12 +59,24 @@ class Settings(BaseSettings):
         max_length=128,
         pattern=r"^[A-Za-z0-9._:-]+$",
     )
+    local_llm_chat_timeout_seconds: float = Field(
+        default=20.0,
+        alias="LOCAL_LLM_CHAT_TIMEOUT_SECONDS",
+        ge=1.0,
+        le=300.0,
+    )
     local_llm_embedding_model: str = Field(
         default="nomic-embed-text",
         alias="LOCAL_LLM_EMBEDDING_MODEL",
         min_length=3,
         max_length=128,
         pattern=r"^[A-Za-z0-9._:-]+$",
+    )
+    local_llm_embedding_timeout_seconds: float = Field(
+        default=20.0,
+        alias="LOCAL_LLM_EMBEDDING_TIMEOUT_SECONDS",
+        ge=1.0,
+        le=300.0,
     )
     embedding_provider: Literal["local", "openai", "local_http"] = Field(
         default="local",

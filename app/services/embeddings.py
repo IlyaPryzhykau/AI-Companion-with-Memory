@@ -223,7 +223,7 @@ def get_embedding_provider(settings: Settings | None = None) -> EmbeddingProvide
             base_url=base_url,
             api_key=settings.local_llm_api_key,
             model=settings.local_llm_embedding_model,
-            timeout_seconds=settings.openai_embedding_timeout_seconds,
+            timeout_seconds=settings.local_llm_embedding_timeout_seconds,
         )
 
     return LocalHashEmbeddingProvider()

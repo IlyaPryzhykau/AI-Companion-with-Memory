@@ -48,9 +48,11 @@ def test_get_embedding_provider_returns_local_http_provider() -> None:
         local_llm_base_url="http://localhost:11434/v1",
         local_llm_api_key="local-key",
         local_llm_embedding_model="nomic-embed-text",
+        local_llm_embedding_timeout_seconds=20.0,
     )
     provider = get_embedding_provider(settings=settings)
     assert isinstance(provider, LocalHTTPEmbeddingProvider)
+    assert provider.timeout_seconds == 20.0
 
 
 def test_get_embedding_provider_rejects_invalid_local_http_base_url() -> None:
@@ -64,10 +66,31 @@ def test_get_embedding_provider_rejects_invalid_local_http_base_url() -> None:
         local_llm_base_url="localhost:11434/v1",
         local_llm_api_key="local-key",
         local_llm_embedding_model="nomic-embed-text",
+        local_llm_embedding_timeout_seconds=20.0,
     )
 
     with pytest.raises(ValueError, match="LOCAL_LLM_BASE_URL"):
         get_embedding_provider(settings=settings)
+
+
+def test_resolve_embedding_provider_with_invalid_local_http_url_falls_back(monkeypatch) -> None:
+    """Resolver should return local fallback when local_http URL is invalid."""
+
+    monkeypatch.setattr(
+        "app.services.embeddings.get_settings",
+        lambda: SimpleNamespace(
+            embedding_provider="local_http",
+            openai_api_key="",
+            openai_embedding_model="text-embedding-3-small",
+            openai_embedding_timeout_seconds=10.0,
+            local_llm_base_url="localhost:11434/v1",
+            local_llm_api_key="local-key",
+            local_llm_embedding_model="nomic-embed-text",
+            local_llm_embedding_timeout_seconds=20.0,
+        ),
+    )
+    provider = resolve_embedding_provider_with_fallback()
+    assert isinstance(provider, LocalHashEmbeddingProvider)
 
 
 def test_openai_embedding_provider_uses_dimensions(monkeypatch) -> None:
