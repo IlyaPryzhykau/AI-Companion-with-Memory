@@ -73,6 +73,44 @@ def test_get_embedding_provider_rejects_invalid_local_http_base_url() -> None:
         get_embedding_provider(settings=settings)
 
 
+def test_get_embedding_provider_rejects_http_url_outside_development() -> None:
+    """HTTP local embedding URL must be rejected in non-local environments."""
+
+    settings = SimpleNamespace(
+        app_env="production",
+        embedding_provider="local_http",
+        openai_api_key="",
+        openai_embedding_model="text-embedding-3-small",
+        openai_embedding_timeout_seconds=10.0,
+        local_llm_base_url="http://llm.internal/v1",
+        local_llm_api_key="local-key",
+        local_llm_embedding_model="nomic-embed-text",
+        local_llm_embedding_timeout_seconds=20.0,
+    )
+
+    with pytest.raises(ValueError, match="Unsafe LOCAL_LLM_BASE_URL"):
+        get_embedding_provider(settings=settings)
+
+
+def test_get_embedding_provider_accepts_https_url_outside_development() -> None:
+    """HTTPS local embedding URL should be accepted in non-local environments."""
+
+    settings = SimpleNamespace(
+        app_env="production",
+        embedding_provider="local_http",
+        openai_api_key="",
+        openai_embedding_model="text-embedding-3-small",
+        openai_embedding_timeout_seconds=10.0,
+        local_llm_base_url="https://llm.internal/v1",
+        local_llm_api_key="local-key",
+        local_llm_embedding_model="nomic-embed-text",
+        local_llm_embedding_timeout_seconds=20.0,
+    )
+
+    provider = get_embedding_provider(settings=settings)
+    assert isinstance(provider, LocalHTTPEmbeddingProvider)
+
+
 def test_resolve_embedding_provider_with_invalid_local_http_url_falls_back(monkeypatch) -> None:
     """Resolver should return local fallback when local_http URL is invalid."""
 

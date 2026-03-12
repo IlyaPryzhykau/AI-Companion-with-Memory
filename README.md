@@ -576,6 +576,9 @@ VECTOR_EMBEDDING_DIMENSIONS=64
 ```
 
 Current implementation supports `VECTOR_EMBEDDING_DIMENSIONS=64` only.
+For `PRIMARY_LLM_PROVIDER=local_http` or `EMBEDDING_PROVIDER=local_http`:
+- `LOCAL_LLM_BASE_URL` must be an absolute URL.
+- `http://` is allowed only in local/development (`APP_ENV=development|dev|local|test`); use `https://` otherwise.
 If `EMBEDDING_PROVIDER=openai` is configured without a valid `OPENAI_API_KEY`,
 the service falls back to local deterministic embeddings to keep retrieval available.
 If `ASSISTANT_PROVIDER=openai` is configured without a valid `OPENAI_API_KEY`

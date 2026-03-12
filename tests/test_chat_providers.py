@@ -65,6 +65,44 @@ def test_get_chat_provider_rejects_invalid_local_http_base_url() -> None:
         get_chat_provider(settings=settings)
 
 
+def test_get_chat_provider_rejects_http_url_outside_development() -> None:
+    """HTTP local LLM URL must be rejected in non-local environments."""
+
+    settings = SimpleNamespace(
+        app_env="production",
+        primary_llm_provider="local_http",
+        openai_api_key="",
+        openai_chat_model="gpt-4o-mini",
+        openai_chat_timeout_seconds=15.0,
+        local_llm_base_url="http://llm.internal/v1",
+        local_llm_api_key="local-key",
+        local_llm_chat_model="llama3.1:8b",
+        local_llm_chat_timeout_seconds=20.0,
+    )
+
+    with pytest.raises(ValueError, match="Unsafe LOCAL_LLM_BASE_URL"):
+        get_chat_provider(settings=settings)
+
+
+def test_get_chat_provider_accepts_https_url_outside_development() -> None:
+    """HTTPS local LLM URL should be accepted in non-local environments."""
+
+    settings = SimpleNamespace(
+        app_env="production",
+        primary_llm_provider="local_http",
+        openai_api_key="",
+        openai_chat_model="gpt-4o-mini",
+        openai_chat_timeout_seconds=15.0,
+        local_llm_base_url="https://llm.internal/v1",
+        local_llm_api_key="local-key",
+        local_llm_chat_model="llama3.1:8b",
+        local_llm_chat_timeout_seconds=20.0,
+    )
+
+    provider = get_chat_provider(settings=settings)
+    assert isinstance(provider, LocalHTTPChatProvider)
+
+
 def test_resolve_chat_provider_with_invalid_local_http_url_falls_back(monkeypatch) -> None:
     """Resolver should return local fallback when local_http URL is invalid."""
 
