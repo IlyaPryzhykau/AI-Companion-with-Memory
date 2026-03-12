@@ -44,6 +44,13 @@ This file provides project context for AI agents and must stay current.
   - Russian (`ru`)
   - Czech (`cs`)
 
+## Planned Architecture Evolution
+
+- Introduce provider abstraction for chat + embeddings with config-based runtime switching (`openai|local`) and explicit provider error mapping.
+- Add agentic memory orchestrator that emits typed memory actions with a default rules mode and auditable decisions.
+- Evolve memory model into profile + episodic + semantic scopes with shared metadata (`confidence`, `importance`, `ttl`, `privacy_tag`).
+- Keep deployment parity across cloud, private-local, and mixed provider modes, while using fail-fast provider behavior in phase 1.
+
 ## Agent Workflow
 
 - Role definitions are in `AGENTS.md`.
