@@ -34,19 +34,17 @@ def upgrade() -> None:
     if not extension_installed:
         try:
             op.execute("CREATE EXTENSION IF NOT EXISTS vector")
-        except (SQLAlchemyError, DBAPIError) as exc:  # pragma: no cover - depends on DB privileges
-            raise RuntimeError(
-                "Failed to create pgvector extension. "
-                "Install extension or grant privileges before migration."
-            ) from exc
+        except (SQLAlchemyError, DBAPIError):  # pragma: no cover - depends on DB privileges
+            extension_installed = False
 
     extension_installed = bind.execute(
         sa.text("SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'vector')")
     ).scalar_one()
     if not extension_installed:
-        raise RuntimeError(
-            "pgvector extension is not installed. Install extension or grant permissions before migration."
-        )
+        # Keep migration non-blocking when pgvector extension is unavailable.
+        # In this mode, application falls back to JSON-backed embedding behavior.
+        op.add_column("vector_memory", sa.Column("embedding_vector", sa.JSON(), nullable=True))
+        return
 
     op.add_column("vector_memory", sa.Column("embedding_vector", EmbeddingVector(64), nullable=True))
 
