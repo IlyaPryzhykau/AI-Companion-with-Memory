@@ -69,3 +69,40 @@ def test_chat_with_foreign_chat_id_returns_404(client) -> None:
     )
 
     assert forbidden_response.status_code == 404
+
+
+def test_chat_passes_recent_history_to_generation(client, monkeypatch) -> None:
+    """Follow-up turn should include chat history when generating assistant reply."""
+
+    token = _signup_and_login(client, "chat-history@example.com")
+    first = client.post(
+        "/api/v1/chat",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"message": "Привет"},
+    )
+    assert first.status_code == 200
+    chat_id = first.json()["chat_id"]
+
+    captured_history_size = {"value": 0}
+
+    def _fake_generate_assistant_reply(
+        user_message: str,
+        memory_context: str | None = None,
+        chat_history: list[tuple[str, str]] | None = None,
+    ) -> str:
+        captured_history_size["value"] = len(chat_history or [])
+        return "ok"
+
+    monkeypatch.setattr(
+        "app.api.v1.endpoints.chat.generate_assistant_reply",
+        _fake_generate_assistant_reply,
+    )
+
+    second = client.post(
+        "/api/v1/chat",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"chat_id": chat_id, "message": "Дальше по теме"},
+    )
+
+    assert second.status_code == 200
+    assert captured_history_size["value"] >= 3

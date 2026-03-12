@@ -19,6 +19,25 @@ from app.services.memory import (
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
+MAX_HISTORY_MESSAGES = 8
+
+
+def _build_recent_chat_history(db: Session, chat_id: int, limit: int = MAX_HISTORY_MESSAGES) -> list[tuple[str, str]]:
+    """Return recent chat history in chronological order for assistant prompting."""
+
+    rows = (
+        db.execute(
+            select(Message.role, Message.content)
+            .where(Message.chat_id == chat_id)
+            .order_by(Message.id.desc())
+            .limit(limit)
+        )
+        .all()
+    )
+    history = [(row[0], row[1]) for row in rows]
+    history.reverse()
+    return history
+
 
 @router.post("", response_model=ChatResponse)
 def send_chat_message(
@@ -52,7 +71,12 @@ def send_chat_message(
     store_vector_memory(db, user_id=current_user.id, text=payload.message, importance=0.55)
 
     memory_context = build_memory_context(db, user_id=current_user.id, user_query=payload.message)
-    assistant_text = generate_assistant_reply(payload.message, memory_context=memory_context)
+    chat_history = _build_recent_chat_history(db, chat_id=chat.id)
+    assistant_text = generate_assistant_reply(
+        payload.message,
+        memory_context=memory_context,
+        chat_history=chat_history,
+    )
     assistant_message = Message(chat_id=chat.id, role="assistant", content=assistant_text)
     db.add(assistant_message)
 

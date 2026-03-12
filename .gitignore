@@ -28,7 +28,6 @@ test.db
 .env
 .env.*
 !.env.example
-!.env.docker
 
 # IDE and editor files
 .idea/

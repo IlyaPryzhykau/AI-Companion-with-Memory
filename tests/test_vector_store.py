@@ -64,6 +64,18 @@ def test_get_vector_store_rejects_unsupported_dimensions(monkeypatch: pytest.Mon
         get_settings.cache_clear()
 
 
+def test_settings_rejects_invalid_openai_embedding_model(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Embedding model name should satisfy basic config validation pattern."""
+
+    monkeypatch.setenv("OPENAI_EMBEDDING_MODEL", "bad model with spaces")
+    get_settings.cache_clear()
+    try:
+        with pytest.raises(ValueError, match="OPENAI_EMBEDDING_MODEL"):
+            get_settings()
+    finally:
+        get_settings.cache_clear()
+
+
 def test_pgvector_store_falls_back_to_json_when_sql_fails(db_session: Session) -> None:
     """PgVectorStore should return fallback results if pgvector SQL path errors."""
 

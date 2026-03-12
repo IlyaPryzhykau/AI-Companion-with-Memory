@@ -6,6 +6,8 @@ Create Date: 2026-03-11
 """
 
 from collections.abc import Sequence
+import os
+import warnings
 
 import sqlalchemy as sa
 from alembic import op
@@ -34,19 +36,41 @@ def upgrade() -> None:
     if not extension_installed:
         try:
             op.execute("CREATE EXTENSION IF NOT EXISTS vector")
-        except (SQLAlchemyError, DBAPIError) as exc:  # pragma: no cover - depends on DB privileges
-            raise RuntimeError(
-                "Failed to create pgvector extension. "
-                "Install extension or grant privileges before migration."
-            ) from exc
+        except (SQLAlchemyError, DBAPIError):  # pragma: no cover - depends on DB privileges
+            extension_installed = False
 
     extension_installed = bind.execute(
         sa.text("SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'vector')")
     ).scalar_one()
     if not extension_installed:
-        raise RuntimeError(
-            "pgvector extension is not installed. Install extension or grant permissions before migration."
+        allow_fallback = os.getenv("ALLOW_PGVECTOR_JSON_FALLBACK", "").lower() in {
+            "1",
+            "true",
+            "yes",
+        }
+        if not allow_fallback:
+            raise RuntimeError(
+                "pgvector extension is unavailable. "
+                "Install pgvector extension or set ALLOW_PGVECTOR_JSON_FALLBACK=true "
+                "to apply explicit degraded-mode JSON fallback."
+            )
+        # Keep migration non-blocking when pgvector extension is unavailable.
+        # In this explicitly opted-in mode, application falls back to JSON-backed embedding behavior.
+        context = op.get_context()
+        if context and context.config:
+            context.config.print_stdout(
+                "WARNING: pgvector extension unavailable. "
+                "Applying JSON fallback for vector_memory.embedding_vector "
+                "(semantic retrieval degraded mode)."
+            )
+        warnings.warn(
+            "pgvector extension is unavailable; applying JSON fallback for "
+            "vector_memory.embedding_vector. Semantic retrieval runs in degraded mode.",
+            RuntimeWarning,
+            stacklevel=2,
         )
+        op.add_column("vector_memory", sa.Column("embedding_vector", sa.JSON(), nullable=True))
+        return
 
     op.add_column("vector_memory", sa.Column("embedding_vector", EmbeddingVector(64), nullable=True))
 
