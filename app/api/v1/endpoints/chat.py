@@ -10,12 +10,8 @@ from app.models.chat import Chat, Message
 from app.models.user import User
 from app.schemas.chat import ChatRequest, ChatResponse
 from app.services.llm import generate_assistant_reply
-from app.services.memory import (
-    build_memory_context,
-    extract_structured_facts,
-    store_vector_memory,
-    upsert_structured_memory,
-)
+from app.services.memory import build_memory_context
+from app.services.memory_orchestrator import apply_memory_actions
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -63,12 +59,15 @@ def send_chat_message(
 
     user_message = Message(chat_id=chat.id, role="user", content=payload.message.strip())
     db.add(user_message)
+    db.flush()
 
-    structured_facts = extract_structured_facts(payload.message)
-    if structured_facts:
-        upsert_structured_memory(db, user_id=current_user.id, facts=structured_facts)
-
-    store_vector_memory(db, user_id=current_user.id, text=payload.message, importance=0.55)
+    apply_memory_actions(
+        db=db,
+        user_id=current_user.id,
+        chat_id=chat.id,
+        user_message=payload.message,
+        source="chat_message",
+    )
 
     memory_context = build_memory_context(db, user_id=current_user.id, user_query=payload.message)
     chat_history = _build_recent_chat_history(db, chat_id=chat.id)

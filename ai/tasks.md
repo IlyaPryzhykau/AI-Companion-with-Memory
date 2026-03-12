@@ -32,6 +32,17 @@ Implemented in:
 - Persist action audit trail for debugging.
 - Cover with unit tests for Russian and English examples.
 
+Status: DONE
+
+Implemented in:
+
+- `app/services/memory_orchestrator.py`
+- `app/models/memory.py`
+- `app/api/v1/endpoints/chat.py`
+- `alembic/versions/20260313_0004_add_memory_action_audit.py`
+- `tests/test_memory_orchestrator.py`
+- `tests/test_memory_pipeline.py`
+
 **Definition of done**
 - Deterministic outputs for identical inputs.
 - Tests include at least one negative case (`SKIP` on irrelevant message).
