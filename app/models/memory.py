@@ -70,3 +70,21 @@ class VectorMemory(Base):
         server_default=func.now(),
         nullable=False,
     )
+
+
+class MemoryActionAudit(Base):
+    """Audit trail of memory orchestration actions for debugging."""
+
+    __tablename__ = "memory_action_audit"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    chat_id: Mapped[int | None] = mapped_column(ForeignKey("chats.id", ondelete="SET NULL"), nullable=True, index=True)
+    action_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    reason: Mapped[str] = mapped_column(String(255), nullable=False)
+    payload_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )

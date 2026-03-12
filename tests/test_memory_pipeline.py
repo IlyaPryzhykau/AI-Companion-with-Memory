@@ -5,7 +5,7 @@ from uuid import uuid4
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models.memory import UserMemory, VectorMemory
+from app.models.memory import MemoryActionAudit, UserMemory, VectorMemory
 
 
 def _signup_and_login(client, email: str, password: str = "strongpass123") -> str:
@@ -49,6 +49,11 @@ def test_chat_stores_structured_and_vector_memory(client, db_session: Session) -
     assert semantic[0].text == "My name is Alex and I live in Berlin."
     assert semantic[0].embedding is not None
     assert semantic[0].embedding_vector is not None
+
+    audits = db_session.execute(select(MemoryActionAudit)).scalars().all()
+    audit_types = {audit.action_type for audit in audits}
+    assert "UPSERT_FACTS" in audit_types
+    assert "STORE_EPISODIC" in audit_types
 
 
 def test_chat_uses_retrieved_memory_in_follow_up_reply(client) -> None:
