@@ -54,13 +54,64 @@ STOP_WORDS = {
     "to",
     "you",
     "your",
+    "ahoj",
+    "ale",
+    "co",
+    "do",
+    "ja",
+    "jak",
+    "jako",
+    "je",
+    "na",
+    "nebo",
+    "pro",
+    "se",
+    "to",
+    "ve",
+    "z",
+    "а",
+    "без",
+    "в",
+    "во",
+    "да",
+    "для",
+    "и",
+    "или",
+    "к",
+    "как",
+    "на",
+    "не",
+    "но",
+    "о",
+    "по",
+    "под",
+    "с",
+    "со",
+    "то",
+    "у",
+    "что",
+    "это",
+    "я",
 }
 
 FACT_PATTERNS: list[tuple[str, re.Pattern[str], float]] = [
-    ("name", re.compile(r"\bmy name is ([a-zA-Z][a-zA-Z\- ]{1,40})\b", re.IGNORECASE), 0.9),
-    ("profession", re.compile(r"\bi am an? ([a-zA-Z][a-zA-Z\- ]{1,40})\b", re.IGNORECASE), 0.7),
-    ("location", re.compile(r"\bi live in ([a-zA-Z][a-zA-Z\- ]{1,60})\b", re.IGNORECASE), 0.7),
-    ("goal", re.compile(r"\bmy goal is to ([^\.\!\?]{3,100})", re.IGNORECASE), 0.8),
+    ("name", re.compile(r"\bmy name is\s+([^\W\d_][^\n\r\.\!\?,]{1,50})", re.IGNORECASE), 0.9),
+    ("name", re.compile(r"\bменя зовут\s+([^\W\d_][^\n\r\.\!\?,]{1,50})", re.IGNORECASE), 0.9),
+    ("name", re.compile(r"\bjmenuji se\s+([^\W\d_][^\n\r\.\!\?,]{1,50})", re.IGNORECASE), 0.9),
+    (
+        "name",
+        re.compile(r"^\s*я\s+([А-Яа-яЁё][А-Яа-яЁё\-]{1,30})(?:\s*[,.!?]|$)", re.IGNORECASE),
+        0.8,
+    ),
+    ("profession", re.compile(r"\bi am an?\s+([^\W\d_][^\n\r\.\!\?,]{1,50})", re.IGNORECASE), 0.7),
+    ("profession", re.compile(r"\bя работаю\s+([^\n\r\.\!\?]{2,80})", re.IGNORECASE), 0.7),
+    ("profession", re.compile(r"\bpracuji jako\s+([^\n\r\.\!\?]{2,80})", re.IGNORECASE), 0.7),
+    ("location", re.compile(r"\bi live in\s+([^\n\r\.\!\?]{2,80})", re.IGNORECASE), 0.7),
+    ("location", re.compile(r"\bя живу в\s+([^\n\r\.\!\?]{2,80})", re.IGNORECASE), 0.7),
+    ("location", re.compile(r"\bbydl[ií]m v\s+([^\n\r\.\!\?]{2,80})", re.IGNORECASE), 0.7),
+    ("goal", re.compile(r"\bmy goal is to\s+([^\.\!\?]{3,100})", re.IGNORECASE), 0.8),
+    ("goal", re.compile(r"\bмоя цель\s*[-: ]\s*([^\.\!\?]{3,100})", re.IGNORECASE), 0.8),
+    ("goal", re.compile(r"\bm[ůu]j c[ií]l\s*[-: ]\s*([^\.\!\?]{3,100})", re.IGNORECASE), 0.8),
 ]
 
 
@@ -92,12 +143,35 @@ def extract_structured_facts(text: str) -> list[tuple[str, str, float]]:
     """Extract simple structured facts from a user message."""
 
     facts: list[tuple[str, str, float]] = []
+    seen: set[tuple[str, str]] = set()
     for key, pattern, importance in FACT_PATTERNS:
         match = pattern.search(text)
         if match:
-            value = match.group(1).strip(" .")
+            value = _normalize_fact_value(key=key, value=match.group(1))
+            if not value:
+                continue
+            dedupe_key = (key, value.lower())
+            if dedupe_key in seen:
+                continue
+            seen.add(dedupe_key)
             facts.append((key, value, importance))
     return facts
+
+
+def _normalize_fact_value(key: str, value: str) -> str:
+    """Normalize captured fact values for stable multilingual storage."""
+
+    cleaned = re.sub(r"\s+", " ", value).strip(" \t\r\n,.;:!?-")
+    if not cleaned:
+        return ""
+
+    if key == "name":
+        name_tokens = re.findall(r"[^\W\d_][^\W\d_'\-]{0,30}", cleaned, flags=re.UNICODE)
+        if not name_tokens:
+            return ""
+        return " ".join(name_tokens[:3]).strip()
+
+    return cleaned
 
 
 def upsert_structured_memory(
@@ -178,11 +252,11 @@ def _recency_score(created_at: datetime | None, now: datetime) -> float:
 
 
 def _tokenize(text: str) -> set[str]:
-    """Tokenize plain text into lowercase alphanumeric words."""
+    """Tokenize plain text into lowercase Unicode words."""
 
     return {
         token
-        for token in re.findall(r"[a-zA-Z0-9]{2,}", text.lower())
+        for token in re.findall(r"[^\W\d_]{2,}", text.lower(), flags=re.UNICODE)
         if token not in STOP_WORDS
     }
 

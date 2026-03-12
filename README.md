@@ -345,6 +345,13 @@ This project now includes baseline memory persistence in the chat flow:
 - Vector memory record creation for user messages
 - Memory context assembly before assistant reply generation
 
+Structured fact extraction and lexical retrieval tokenization are currently
+language-aware for:
+
+- English (`en`)
+- Russian (`ru`)
+- Czech (`cs`)
+
 Database migration introduced in phase 2:
 
 ```text
