@@ -70,13 +70,18 @@ class OpenAIEmbeddingProvider:
         """Generate embedding from OpenAI API and validate output shape."""
 
         client = OpenAI(api_key=self.api_key, timeout=self.timeout_seconds)
-        response = client.embeddings.create(
-            model=self.model,
-            input=text,
-            dimensions=dimensions,
-        )
-        vector = [float(value) for value in response.data[0].embedding]
-        return validate_embedding_vector(vector, expected_dimensions=dimensions)
+        try:
+            response = client.embeddings.create(
+                model=self.model,
+                input=text,
+                dimensions=dimensions,
+            )
+            vector = [float(value) for value in response.data[0].embedding]
+            return validate_embedding_vector(vector, expected_dimensions=dimensions)
+        except Exception as exc:
+            raise RuntimeError(
+                f"OpenAI embedding request failed for model '{self.model}'."
+            ) from exc
 
 
 def get_embedding_provider(settings: Settings | None = None) -> EmbeddingProvider:

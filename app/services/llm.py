@@ -45,11 +45,11 @@ def generate_assistant_reply(user_message: str, memory_context: str | None = Non
                     f"{memory_context}\n\n"
                     f"User message: {user_message.strip()}"
                 )
-            response = client.responses.create(
+            response = client.chat.completions.create(
                 model=settings.openai_chat_model,
-                input=prompt,
+                messages=[{"role": "user", "content": prompt}],
             )
-            text = getattr(response, "output_text", "") or ""
+            text = response.choices[0].message.content or ""
             if text.strip():
                 return text.strip()
         except Exception as exc:  # pragma: no cover

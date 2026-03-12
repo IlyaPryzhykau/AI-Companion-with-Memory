@@ -602,6 +602,7 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ## Docker Quick Start
 
 ```bash
+copy .env.example .env
 docker compose up --build
 ```
 

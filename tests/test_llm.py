@@ -8,19 +8,21 @@ from app.services.llm import generate_assistant_reply
 def test_generate_assistant_reply_uses_configured_openai_model(monkeypatch) -> None:
     """Configured OpenAI chat model should be used for assistant calls."""
 
-    class _FakeResponses:
+    class _FakeCompletions:
         def __init__(self) -> None:
             self.last_model = ""
 
         def create(self, **kwargs):
             self.last_model = kwargs["model"]
-            return SimpleNamespace(output_text="Model-based response")
+            return SimpleNamespace(
+                choices=[SimpleNamespace(message=SimpleNamespace(content="Model-based response"))]
+            )
 
-    fake_responses = _FakeResponses()
+    fake_completions = _FakeCompletions()
 
     class _FakeClient:
         def __init__(self, *args, **kwargs) -> None:
-            self.responses = fake_responses
+            self.chat = SimpleNamespace(completions=fake_completions)
 
     monkeypatch.setattr(
         "app.services.llm.get_settings",
@@ -36,19 +38,19 @@ def test_generate_assistant_reply_uses_configured_openai_model(monkeypatch) -> N
     reply = generate_assistant_reply("Hello")
 
     assert reply == "Model-based response"
-    assert fake_responses.last_model == "gpt-4.1-mini"
+    assert fake_completions.last_model == "gpt-4.1-mini"
 
 
 def test_generate_assistant_reply_falls_back_to_echo_on_openai_error(monkeypatch) -> None:
     """OpenAI call errors should not break response generation."""
 
-    class _FailingResponses:
+    class _FailingCompletions:
         def create(self, **kwargs):
             raise RuntimeError("simulated openai failure")
 
     class _FakeClient:
         def __init__(self, *args, **kwargs) -> None:
-            self.responses = _FailingResponses()
+            self.chat = SimpleNamespace(completions=_FailingCompletions())
 
     monkeypatch.setattr(
         "app.services.llm.get_settings",
