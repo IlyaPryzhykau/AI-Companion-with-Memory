@@ -5,6 +5,7 @@ import logging
 import math
 from dataclasses import dataclass
 from typing import Protocol
+from urllib.parse import urlparse
 
 from openai import (
     APIConnectionError,
@@ -21,6 +22,18 @@ from app.core.config import Settings, get_settings
 from app.services.vector_validation import validate_embedding_vector
 
 logger = logging.getLogger(__name__)
+
+
+def _validate_http_base_url(value: str, setting_name: str) -> str:
+    """Validate OpenAI-compatible HTTP base URL."""
+
+    base_url = value.strip()
+    parsed = urlparse(base_url)
+    if not base_url or parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise ValueError(
+            f"Invalid {setting_name} value. Expected absolute http(s) URL, got: {value!r}."
+        )
+    return base_url
 
 
 class EmbeddingProvider(Protocol):
@@ -202,8 +215,12 @@ def get_embedding_provider(settings: Settings | None = None) -> EmbeddingProvide
             timeout_seconds=settings.openai_embedding_timeout_seconds,
         )
     if provider == "local_http":
+        base_url = _validate_http_base_url(
+            settings.local_llm_base_url,
+            "LOCAL_LLM_BASE_URL",
+        )
         return LocalHTTPEmbeddingProvider(
-            base_url=settings.local_llm_base_url,
+            base_url=base_url,
             api_key=settings.local_llm_api_key,
             model=settings.local_llm_embedding_model,
             timeout_seconds=settings.openai_embedding_timeout_seconds,
@@ -219,7 +236,7 @@ def resolve_embedding_provider_with_fallback() -> EmbeddingProvider:
         return get_embedding_provider()
     except (ValidationError, ValueError) as exc:
         logger.warning(
-            "embedding_provider_resolution_failed error=%s fallback=local",
-            f"{type(exc).__name__}: {exc}",
+            "embedding_provider_resolution_failed error_type=%s fallback=local",
+            type(exc).__name__,
         )
         return LocalHashEmbeddingProvider()

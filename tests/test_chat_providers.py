@@ -44,6 +44,61 @@ def test_get_chat_provider_returns_local_http_provider() -> None:
     assert isinstance(provider, LocalHTTPChatProvider)
 
 
+def test_get_chat_provider_rejects_invalid_local_http_base_url() -> None:
+    """Invalid local HTTP base URL should fail fast at provider resolution."""
+
+    settings = SimpleNamespace(
+        primary_llm_provider="local_http",
+        openai_api_key="",
+        openai_chat_model="gpt-4o-mini",
+        openai_chat_timeout_seconds=15.0,
+        local_llm_base_url="localhost:11434/v1",
+        local_llm_api_key="local-key",
+        local_llm_chat_model="llama3.1:8b",
+    )
+
+    with pytest.raises(ValueError, match="LOCAL_LLM_BASE_URL"):
+        get_chat_provider(settings=settings)
+
+
+def test_get_chat_provider_uses_legacy_assistant_provider_when_primary_not_set() -> None:
+    """Legacy ASSISTANT_PROVIDER=openai should work when primary provider is unset."""
+
+    settings = SimpleNamespace(
+        primary_llm_provider="local",
+        model_fields_set={"assistant_provider"},
+        assistant_provider="openai",
+        openai_api_key="test-key",
+        openai_chat_model="gpt-4o-mini",
+        openai_chat_timeout_seconds=15.0,
+        local_llm_base_url="http://localhost:11434/v1",
+        local_llm_api_key="local-key",
+        local_llm_chat_model="llama3.1:8b",
+    )
+
+    provider = get_chat_provider(settings=settings)
+    assert isinstance(provider, OpenAIChatProvider)
+
+
+def test_get_chat_provider_keeps_explicit_primary_provider() -> None:
+    """Explicit PRIMARY_LLM_PROVIDER should override legacy ASSISTANT_PROVIDER."""
+
+    settings = SimpleNamespace(
+        primary_llm_provider="local",
+        model_fields_set={"primary_llm_provider", "assistant_provider"},
+        assistant_provider="openai",
+        openai_api_key="test-key",
+        openai_chat_model="gpt-4o-mini",
+        openai_chat_timeout_seconds=15.0,
+        local_llm_base_url="http://localhost:11434/v1",
+        local_llm_api_key="local-key",
+        local_llm_chat_model="llama3.1:8b",
+    )
+
+    provider = get_chat_provider(settings=settings)
+    assert isinstance(provider, EchoChatProvider)
+
+
 def test_openai_chat_provider_uses_model(monkeypatch) -> None:
     """OpenAI provider should pass configured model to client call."""
 

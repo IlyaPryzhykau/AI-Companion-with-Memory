@@ -1,9 +1,9 @@
 """Chat model provider abstraction and implementations."""
 
 import logging
-import os
 from dataclasses import dataclass
 from typing import Protocol
+from urllib.parse import urlparse
 
 from openai import (
     APIConnectionError,
@@ -19,6 +19,18 @@ from pydantic import ValidationError
 from app.core.config import Settings, get_settings
 
 logger = logging.getLogger(__name__)
+
+
+def _validate_http_base_url(value: str, setting_name: str) -> str:
+    """Validate OpenAI-compatible HTTP base URL."""
+
+    base_url = value.strip()
+    parsed = urlparse(base_url)
+    if not base_url or parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise ValueError(
+            f"Invalid {setting_name} value. Expected absolute http(s) URL, got: {value!r}."
+        )
+    return base_url
 
 
 class ChatProvider(Protocol):
@@ -133,8 +145,14 @@ def get_chat_provider(settings: Settings | None = None) -> ChatProvider:
         settings = get_settings()
 
     provider = settings.primary_llm_provider.lower().strip()
+    fields_set = getattr(settings, "model_fields_set", set())
+    primary_explicitly_set = "primary_llm_provider" in fields_set
     # Backward compatibility for older ASSISTANT_PROVIDER-based configuration.
-    if os.getenv("PRIMARY_LLM_PROVIDER") is None and getattr(settings, "assistant_provider", "local") == "openai":
+    if (
+        not primary_explicitly_set
+        and provider == "local"
+        and getattr(settings, "assistant_provider", "local") == "openai"
+    ):
         provider = "openai"
     if provider == "openai":
         if not settings.openai_api_key.strip():
@@ -146,8 +164,12 @@ def get_chat_provider(settings: Settings | None = None) -> ChatProvider:
             timeout_seconds=settings.openai_chat_timeout_seconds,
         )
     if provider == "local_http":
+        base_url = _validate_http_base_url(
+            settings.local_llm_base_url,
+            "LOCAL_LLM_BASE_URL",
+        )
         return LocalHTTPChatProvider(
-            base_url=settings.local_llm_base_url,
+            base_url=base_url,
             api_key=settings.local_llm_api_key,
             model=settings.local_llm_chat_model,
             timeout_seconds=settings.openai_chat_timeout_seconds,
@@ -167,7 +189,7 @@ def resolve_chat_provider_with_fallback() -> ChatProvider:
         return get_chat_provider()
     except (ValidationError, ValueError) as exc:
         logger.warning(
-            "chat_provider_resolution_failed error=%s fallback=local",
-            f"{type(exc).__name__}: {exc}",
+            "chat_provider_resolution_failed error_type=%s fallback=local",
+            type(exc).__name__,
         )
         return EchoChatProvider()

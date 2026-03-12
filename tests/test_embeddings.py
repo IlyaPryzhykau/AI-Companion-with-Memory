@@ -53,6 +53,23 @@ def test_get_embedding_provider_returns_local_http_provider() -> None:
     assert isinstance(provider, LocalHTTPEmbeddingProvider)
 
 
+def test_get_embedding_provider_rejects_invalid_local_http_base_url() -> None:
+    """Invalid local HTTP base URL should fail fast at provider resolution."""
+
+    settings = SimpleNamespace(
+        embedding_provider="local_http",
+        openai_api_key="",
+        openai_embedding_model="text-embedding-3-small",
+        openai_embedding_timeout_seconds=10.0,
+        local_llm_base_url="localhost:11434/v1",
+        local_llm_api_key="local-key",
+        local_llm_embedding_model="nomic-embed-text",
+    )
+
+    with pytest.raises(ValueError, match="LOCAL_LLM_BASE_URL"):
+        get_embedding_provider(settings=settings)
+
+
 def test_openai_embedding_provider_uses_dimensions(monkeypatch) -> None:
     """OpenAI provider should pass requested embedding dimensions to client."""
 
