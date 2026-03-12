@@ -17,6 +17,13 @@ def test_extract_structured_name_in_czech() -> None:
     assert ("name", "Václav", 0.9) in facts
 
 
+def test_russian_short_form_name_pattern_does_not_capture_profession_phrase() -> None:
+    """Short-form Russian name extraction should not treat verbs as names."""
+
+    facts = extract_structured_facts("Я работаю тестировщиком.")
+    assert not any(key == "name" and value.lower() == "работаю" for key, value, _ in facts)
+
+
 def test_unicode_tokenize_handles_cyrillic_and_czech() -> None:
     """Tokenizer should preserve non-Latin words for retrieval relevance."""
 
