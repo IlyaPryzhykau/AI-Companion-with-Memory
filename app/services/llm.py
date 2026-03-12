@@ -54,9 +54,9 @@ def generate_assistant_reply(user_message: str, memory_context: str | None = Non
                 return text.strip()
         except Exception as exc:  # pragma: no cover
             logger.warning(
-                "assistant_openai_call_failed model=%s error=%s fallback=echo",
+                "assistant_openai_call_failed model=%s error_type=%s fallback=echo",
                 settings.openai_chat_model,
-                f"{type(exc).__name__}: {exc}",
+                type(exc).__name__,
             )
 
     return f"Echo: {user_message.strip()}"

@@ -79,9 +79,14 @@ class OpenAIEmbeddingProvider:
             vector = [float(value) for value in response.data[0].embedding]
             return validate_embedding_vector(vector, expected_dimensions=dimensions)
         except Exception as exc:
+            logger.warning(
+                "openai_embedding_call_failed model=%s error_type=%s",
+                self.model,
+                type(exc).__name__,
+            )
             raise RuntimeError(
                 f"OpenAI embedding request failed for model '{self.model}'."
-            ) from exc
+            )
 
 
 def get_embedding_provider(settings: Settings | None = None) -> EmbeddingProvider:
