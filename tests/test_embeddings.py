@@ -2,6 +2,8 @@
 
 from types import SimpleNamespace
 
+import pytest
+
 from app.models.user import User
 from app.services.embeddings import (
     LocalHashEmbeddingProvider,
@@ -58,6 +60,24 @@ def test_openai_embedding_provider_uses_dimensions(monkeypatch) -> None:
 
     assert len(vector) == 64
     assert fake_embeddings_api.last_dimensions == 64
+
+
+def test_openai_embedding_provider_rejects_malformed_response(monkeypatch) -> None:
+    """Provider should fail safely when API response misses embedding payload."""
+
+    class _FakeEmbeddingsAPI:
+        def create(self, **kwargs):
+            return SimpleNamespace(data=[])
+
+    class _FakeOpenAI:
+        def __init__(self, *args, **kwargs) -> None:
+            self.embeddings = _FakeEmbeddingsAPI()
+
+    monkeypatch.setattr("app.services.embeddings.OpenAI", _FakeOpenAI)
+
+    provider = OpenAIEmbeddingProvider(api_key="test-key", model="text-embedding-3-small")
+    with pytest.raises(RuntimeError, match="embedding request failed"):
+        provider.embed("hello", dimensions=64)
 
 
 def test_resolve_embedding_provider_with_invalid_config_falls_back(monkeypatch) -> None:

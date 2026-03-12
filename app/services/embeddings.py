@@ -8,6 +8,7 @@ from typing import Protocol
 
 from openai import (
     APIConnectionError,
+    APIError,
     APIStatusError,
     APITimeoutError,
     AuthenticationError,
@@ -83,6 +84,12 @@ class OpenAIEmbeddingProvider:
                 input=text,
                 dimensions=dimensions,
             )
+            if (
+                not getattr(response, "data", None)
+                or not response.data
+                or not getattr(response.data[0], "embedding", None)
+            ):
+                raise ValueError("OpenAI embedding response is missing embedding payload.")
             vector = [float(value) for value in response.data[0].embedding]
             return validate_embedding_vector(vector, expected_dimensions=dimensions)
         except (
@@ -90,17 +97,13 @@ class OpenAIEmbeddingProvider:
             RateLimitError,
             APITimeoutError,
             APIConnectionError,
+            APIError,
             APIStatusError,
+            ValueError,
+            TypeError,
+            KeyError,
+            IndexError,
         ) as exc:
-            logger.warning(
-                "openai_embedding_call_failed model=%s error_type=%s",
-                self.model,
-                type(exc).__name__,
-            )
-            raise RuntimeError(
-                f"OpenAI embedding request failed for model '{self.model}'."
-            )
-        except Exception as exc:
             logger.warning(
                 "openai_embedding_call_failed model=%s error_type=%s",
                 self.model,

@@ -2,6 +2,8 @@
 
 from types import SimpleNamespace
 
+from openai import OpenAIError
+
 from app.services.llm import generate_assistant_reply
 
 
@@ -46,7 +48,7 @@ def test_generate_assistant_reply_falls_back_to_echo_on_openai_error(monkeypatch
 
     class _FailingCompletions:
         def create(self, **kwargs):
-            raise RuntimeError("simulated openai failure")
+            raise OpenAIError("simulated openai failure")
 
     class _FakeClient:
         def __init__(self, *args, **kwargs) -> None:
