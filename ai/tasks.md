@@ -53,6 +53,18 @@ Implemented in:
 - Support confidence scores and safe fallback to rules mode.
 - Add guardrails to avoid storing sensitive secrets by default.
 
+Status: DONE
+
+Implemented in:
+
+- `app/services/memory_policy.py`
+- `app/services/memory_actions.py`
+- `app/services/memory_orchestrator.py`
+- `app/core/config.py`
+- `tests/test_memory_policy.py`
+- `.env.example`
+- `README.md`
+
 **Definition of done**
 - Policy mode is feature-flagged and can be disabled at runtime.
 - Sensitive data suppression tests pass.
