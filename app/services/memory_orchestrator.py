@@ -1,15 +1,13 @@
 """Rules-based memory orchestration and action audit helpers."""
 
 import re
-from dataclasses import dataclass
-from typing import Any, Literal
 
 from sqlalchemy.orm import Session
 
 from app.models.memory import MemoryActionAudit
+from app.services.memory_actions import MemoryAction
 from app.services.memory import extract_structured_facts, store_vector_memory, upsert_structured_memory
-
-MemoryActionType = Literal["UPSERT_FACTS", "STORE_EPISODIC", "SKIP"]
+from app.services.memory_policy import apply_memory_policy
 
 _SKIP_PHRASES = {
     "ok",
@@ -26,16 +24,6 @@ _SKIP_PHRASES = {
     "diky",
     "děkuji",
 }
-
-
-@dataclass(frozen=True)
-class MemoryAction:
-    """Typed memory action produced by deterministic rules."""
-
-    action_type: MemoryActionType
-    reason: str
-    payload: dict[str, Any]
-
 
 class MemoryOrchestrator:
     """Deterministic rules-based orchestrator for memory persistence."""
@@ -150,7 +138,8 @@ def apply_memory_actions(
     """Run rules orchestration, execute actions, and persist action audit."""
 
     orchestrator = MemoryOrchestrator()
-    actions = orchestrator.plan(user_message)
+    planned_actions = orchestrator.plan(user_message)
+    actions = apply_memory_policy(user_message=user_message, actions=planned_actions)
 
     for action in actions:
         if action.action_type == "UPSERT_FACTS":

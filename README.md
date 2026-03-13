@@ -594,6 +594,8 @@ MEMORY_CONTEXT_MAX_CHARS=800
 MEMORY_WEIGHT_RELEVANCE=0.65
 MEMORY_WEIGHT_IMPORTANCE=0.25
 MEMORY_WEIGHT_RECENCY=0.10
+MEMORY_POLICY_MODE=rules|llm
+MEMORY_POLICY_MIN_CONFIDENCE=0.70
 ```
 
 Retrieval ranking score is computed as:
@@ -605,6 +607,11 @@ score = (relevance * MEMORY_WEIGHT_RELEVANCE)
 ```
 
 Weights are normalized at runtime, and memory context is trimmed to `MEMORY_CONTEXT_MAX_CHARS`.
+Memory policy mode:
+- `MEMORY_POLICY_MODE=rules` (default) uses deterministic orchestration only.
+- `MEMORY_POLICY_MODE=llm` enables model-based allow/deny filtering on top of rules.
+- If policy output is invalid/low-confidence, system safely falls back to rules decisions.
+- Sensitive content guardrail blocks persistence of likely secrets by default.
 
 ## Backend Quick Start
 

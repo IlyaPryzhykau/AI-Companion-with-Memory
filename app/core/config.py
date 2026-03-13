@@ -134,6 +134,16 @@ class Settings(BaseSettings):
         ge=0.0,
         le=10.0,
     )
+    memory_policy_mode: Literal["rules", "llm"] = Field(
+        default="rules",
+        alias="MEMORY_POLICY_MODE",
+    )
+    memory_policy_min_confidence: float = Field(
+        default=0.7,
+        alias="MEMORY_POLICY_MIN_CONFIDENCE",
+        ge=0.0,
+        le=1.0,
+    )
     jwt_secret_key: str = Field(
         default="change-me-in-production-at-least-32-chars",
         alias="JWT_SECRET_KEY",
