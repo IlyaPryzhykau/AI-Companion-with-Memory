@@ -9,16 +9,20 @@ def main() -> None:
     args = parser.parse_args()
 
     with SessionLocal() as db:
-        result = compact_vector_memory(
-            db,
-            user_id=args.user_id,
-            near_duplicate_threshold=args.near_threshold,
-            dry_run=not args.apply,
-        )
-        if args.apply:
-            db.commit()
-        else:
+        try:
+            result = compact_vector_memory(
+                db,
+                user_id=args.user_id,
+                near_duplicate_threshold=args.near_threshold,
+                dry_run=not args.apply,
+            )
+            if args.apply:
+                db.commit()
+            else:
+                db.rollback()
+        except Exception:
             db.rollback()
+            raise
 
     print(
         "memory_compaction",
@@ -33,4 +37,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

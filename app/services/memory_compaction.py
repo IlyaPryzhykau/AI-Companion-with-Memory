@@ -8,7 +8,8 @@ import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.models.memory import VectorMemory
@@ -61,61 +62,70 @@ def compact_vector_memory(
     near_deleted = 0
     rows_scanned = 0
 
-    for target_user_id in user_ids:
-        records = (
-            db.execute(
-                select(VectorMemory)
-                .where(VectorMemory.user_id == target_user_id)
-                .order_by(VectorMemory.created_at.asc(), VectorMemory.id.asc())
+    try:
+        for target_user_id in user_ids:
+            records = (
+                db.execute(
+                    select(VectorMemory)
+                    .where(VectorMemory.user_id == target_user_id)
+                    .order_by(VectorMemory.created_at.asc(), VectorMemory.id.asc())
+                )
+                .scalars()
+                .all()
             )
-            .scalars()
-            .all()
+            rows_scanned += len(records)
+
+            keep_by_exact_key: dict[str, _KeepRecord] = {}
+            keepers: list[_KeepRecord] = []
+
+            for row in records:
+                normalized = _normalize_text(row.text)
+                tokens = _tokenize(normalized)
+                current = _KeepRecord(
+                    id=row.id,
+                    text=row.text,
+                    normalized_text=normalized,
+                    tokens=tokens,
+                    importance=float(row.importance),
+                    created_at=_safe_utc(row.created_at),
+                )
+
+                exact_match = keep_by_exact_key.get(normalized)
+                if exact_match is not None:
+                    winner, loser = _choose_winner(current, exact_match)
+                    if loser.id not in deleted_ids:
+                        deleted_ids.add(loser.id)
+                        exact_deleted += 1
+                    if winner.id == current.id:
+                        keep_by_exact_key[normalized] = winner
+                        keepers = [winner if item.id == exact_match.id else item for item in keepers]
+                    continue
+
+                similar = _find_near_duplicate(current, keepers, threshold=safe_threshold)
+                if similar is not None:
+                    winner, loser = _choose_winner(current, similar)
+                    if loser.id not in deleted_ids:
+                        deleted_ids.add(loser.id)
+                        near_deleted += 1
+                    if winner.id == current.id:
+                        keepers = [winner if item.id == similar.id else item for item in keepers]
+                        keep_by_exact_key.pop(similar.normalized_text, None)
+                        keep_by_exact_key[current.normalized_text] = winner
+                    continue
+
+                keep_by_exact_key[normalized] = current
+                keepers.append(current)
+
+        if not dry_run and deleted_ids:
+            db.execute(delete(VectorMemory).where(VectorMemory.id.in_(deleted_ids)))
+    except SQLAlchemyError as exc:
+        logger.exception(
+            "memory_compaction_failed user_id=%s dry_run=%s error_type=%s",
+            user_id,
+            dry_run,
+            type(exc).__name__,
         )
-        rows_scanned += len(records)
-
-        keep_by_exact_key: dict[str, _KeepRecord] = {}
-        keepers: list[_KeepRecord] = []
-
-        for row in records:
-            normalized = _normalize_text(row.text)
-            tokens = _tokenize(normalized)
-            current = _KeepRecord(
-                id=row.id,
-                text=row.text,
-                normalized_text=normalized,
-                tokens=tokens,
-                importance=float(row.importance),
-                created_at=_safe_utc(row.created_at),
-            )
-
-            exact_match = keep_by_exact_key.get(normalized)
-            if exact_match is not None:
-                winner, loser = _choose_winner(current, exact_match)
-                if loser.id not in deleted_ids:
-                    deleted_ids.add(loser.id)
-                    exact_deleted += 1
-                if winner.id == current.id:
-                    keep_by_exact_key[normalized] = winner
-                    keepers = [winner if item.id == exact_match.id else item for item in keepers]
-                continue
-
-            similar = _find_near_duplicate(current, keepers, threshold=safe_threshold)
-            if similar is not None:
-                winner, loser = _choose_winner(current, similar)
-                if loser.id not in deleted_ids:
-                    deleted_ids.add(loser.id)
-                    near_deleted += 1
-                if winner.id == current.id:
-                    keepers = [winner if item.id == similar.id else item for item in keepers]
-                    keep_by_exact_key.pop(similar.normalized_text, None)
-                    keep_by_exact_key[current.normalized_text] = winner
-                continue
-
-            keep_by_exact_key[normalized] = current
-            keepers.append(current)
-
-    if not dry_run and deleted_ids:
-        db.query(VectorMemory).filter(VectorMemory.id.in_(deleted_ids)).delete(synchronize_session=False)
+        raise
 
     result = MemoryCompactionResult(
         users_scanned=len(user_ids),
