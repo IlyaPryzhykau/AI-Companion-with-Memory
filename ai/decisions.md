@@ -29,14 +29,15 @@
   - Improved control over recall quality and storage growth.
   - Additional retrieval logic and migration complexity.
 
-## ADR-004: Fail-fast provider policy in phase 1
+## ADR-004: Explicit bounded fallback provider policy
 
 - **Status:** accepted
-- **Context:** Silent cross-provider fallback can hide outages and produce inconsistent behavior.
-- **Decision:** In phase 1, do not auto-fallback between providers within a single request.
+- **Context:** Strict fail-fast surfaced outages quickly, but several production scenarios require limited resilience without hiding incidents.
+- **Decision:** Allow only explicit, bounded fallback paths for selected failure classes. Hidden or arbitrary cross-provider retries within a request remain disallowed.
 - **Consequences:**
-  - Operational issues are visible immediately.
-  - Requires clear error mapping and dashboarding for provider incidents.
+  - Provider failures remain visible via logs/metrics and deterministic error mapping.
+  - Runtime behavior is more resilient for known failure modes while staying predictable.
+  - Fallback paths must stay documented and test-covered to avoid policy drift.
 
 ## ADR-005: Kubernetes-ready deployment with modular monolith backend
 

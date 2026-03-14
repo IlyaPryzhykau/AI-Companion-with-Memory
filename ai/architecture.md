@@ -41,15 +41,18 @@ Provider implementations:
 
 Routing config:
 
-- `PRIMARY_LLM_PROVIDER` = `openai|local`
-- `EMBEDDING_PROVIDER` = `openai|local`
+- `PRIMARY_LLM_PROVIDER` = `openai|local|local_http`
+- `EMBEDDING_PROVIDER` = `openai|local|local_http`
 - optional `MEMORY_POLICY_PROVIDER` = `openai|local|rules`
 
 Operational requirements:
 
 - Provider selection is hot-configurable via environment variables.
 - Chat flow must return deterministic error mapping (`provider_unavailable`, `invalid_provider_config`).
-- Fallback policy: if configured provider fails hard, request fails fast (no hidden cross-provider retries in phase 1).
+- Fallback policy (current implementation):
+  - Explicit safe fallback paths are allowed for resilience in selected failure classes.
+  - Hidden cross-provider retries are still disallowed.
+  - Provider failures remain visible through metrics/logging and are not silently ignored.
 
 ### 2) Agentic memory orchestrator (policy layer)
 
