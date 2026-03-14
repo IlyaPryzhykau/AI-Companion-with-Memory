@@ -363,8 +363,11 @@ def _build_episodic_candidates(
     except (TypeError, ValueError):
         logger.warning("episodic_retrieval_invalid_user_id user_id=%r", user_id)
         return []
+    if safe_user_id <= 0:
+        logger.warning("episodic_retrieval_invalid_user_id_non_positive user_id=%r", user_id)
+        return []
 
-    row_limit = max(5, policy.episodic_top_k * policy.candidate_multiplier * 3)
+    row_limit = min(100, max(5, policy.episodic_top_k * policy.candidate_multiplier * 3))
     try:
         rows = (
             db.execute(
@@ -423,6 +426,9 @@ def build_memory_context(
         safe_user_id = int(user_id)
     except (TypeError, ValueError):
         logger.warning("memory_retrieval_invalid_user_id user_id=%r", user_id)
+        return ""
+    if safe_user_id <= 0:
+        logger.warning("memory_retrieval_invalid_user_id_non_positive user_id=%r", user_id)
         return ""
 
     policy = _resolve_retrieval_policy(max_items=max_items, max_chars=max_chars)
@@ -571,44 +577,44 @@ def _resolve_retrieval_policy(max_items: int | None, max_chars: int | None) -> R
             weight_importance=0.25,
             weight_recency=0.10,
         )
-    configured_top_k = getattr(settings, "memory_retrieval_top_k", 6) if max_items is None else max_items
-    configured_max_chars = getattr(settings, "memory_context_max_chars", 800) if max_chars is None else max_chars
+    try:
+        configured_top_k = settings.memory_retrieval_top_k if max_items is None else max_items
+        configured_max_chars = settings.memory_context_max_chars if max_chars is None else max_chars
+        raw_max_tokens = settings.memory_context_max_tokens
+        raw_multiplier = settings.memory_retrieval_candidate_multiplier
+        raw_profile_top_k = settings.memory_retrieval_profile_top_k
+        raw_episodic_top_k = settings.memory_retrieval_episodic_top_k
+        raw_semantic_top_k = settings.memory_retrieval_semantic_top_k
+        raw_weight_relevance = settings.memory_weight_relevance
+        raw_weight_importance = settings.memory_weight_importance
+        raw_weight_recency = settings.memory_weight_recency
+    except AttributeError as exc:
+        logger.warning(
+            "memory_retrieval_settings_attribute_missing error_type=%s using_defaults=true",
+            type(exc).__name__,
+        )
+        configured_top_k = 6 if max_items is None else max_items
+        configured_max_chars = 800 if max_chars is None else max_chars
+        raw_max_tokens = 220
+        raw_multiplier = 3
+        raw_profile_top_k = 2
+        raw_episodic_top_k = 2
+        raw_semantic_top_k = 6
+        raw_weight_relevance = 0.65
+        raw_weight_importance = 0.25
+        raw_weight_recency = 0.10
+
     top_k = _coerce_int(_coalesce(configured_top_k, 6), default=6, min_value=1, max_value=20)
     max_context_chars = _coerce_int(_coalesce(configured_max_chars, 800), default=800, min_value=80, max_value=8000)
-    max_context_tokens = _coerce_int(
-        _coalesce(getattr(settings, "memory_context_max_tokens", 220), 220),
-        default=220,
-        min_value=20,
-        max_value=4000,
-    )
-    multiplier = _coerce_int(
-        _coalesce(getattr(settings, "memory_retrieval_candidate_multiplier", 3), 3),
-        default=3,
-        min_value=1,
-        max_value=10,
-    )
-    profile_top_k = _coerce_int(
-        _coalesce(getattr(settings, "memory_retrieval_profile_top_k", 2), 2),
-        default=2,
-        min_value=0,
-        max_value=20,
-    )
-    episodic_top_k = _coerce_int(
-        _coalesce(getattr(settings, "memory_retrieval_episodic_top_k", 2), 2),
-        default=2,
-        min_value=0,
-        max_value=20,
-    )
-    semantic_top_k = _coerce_int(
-        _coalesce(getattr(settings, "memory_retrieval_semantic_top_k", 6), 6),
-        default=6,
-        min_value=0,
-        max_value=50,
-    )
+    max_context_tokens = _coerce_int(_coalesce(raw_max_tokens, 220), default=220, min_value=20, max_value=4000)
+    multiplier = _coerce_int(_coalesce(raw_multiplier, 3), default=3, min_value=1, max_value=10)
+    profile_top_k = _coerce_int(_coalesce(raw_profile_top_k, 2), default=2, min_value=0, max_value=20)
+    episodic_top_k = _coerce_int(_coalesce(raw_episodic_top_k, 2), default=2, min_value=0, max_value=20)
+    semantic_top_k = _coerce_int(_coalesce(raw_semantic_top_k, 6), default=6, min_value=0, max_value=50)
     weights = _normalize_weights(
-        _coalesce(getattr(settings, "memory_weight_relevance", 0.65), 0.65),
-        _coalesce(getattr(settings, "memory_weight_importance", 0.25), 0.25),
-        _coalesce(getattr(settings, "memory_weight_recency", 0.10), 0.10),
+        _coalesce(raw_weight_relevance, 0.65),
+        _coalesce(raw_weight_importance, 0.25),
+        _coalesce(raw_weight_recency, 0.10),
     )
     return RetrievalPolicy(
         top_k=top_k,
@@ -646,7 +652,10 @@ def _estimate_token_count(text: str) -> int:
 
     if not isinstance(text, str):
         return 1
-    words = len(re.findall(r"\S+", text))
+    try:
+        words = len(re.findall(r"\S+", text))
+    except re.error:
+        return 1
     return max(1, int(words * 1.3))
 
 
