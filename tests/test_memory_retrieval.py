@@ -5,6 +5,8 @@ from types import SimpleNamespace
 
 from sqlalchemy.orm import Session
 
+from app.models.chat import Chat, Message
+from app.models.memory import UserMemory
 from app.models.memory import VectorMemory
 from app.models.user import User
 from app.services.memory import _normalize_weights, build_memory_context
@@ -181,7 +183,11 @@ def test_retrieval_uses_configured_weights(db_session: Session, monkeypatch) -> 
         lambda: SimpleNamespace(
             memory_retrieval_top_k=6,
             memory_context_max_chars=800,
+            memory_context_max_tokens=220,
             memory_retrieval_candidate_multiplier=3,
+            memory_retrieval_profile_top_k=2,
+            memory_retrieval_episodic_top_k=2,
+            memory_retrieval_semantic_top_k=6,
             memory_weight_relevance=0.05,
             memory_weight_importance=0.90,
             memory_weight_recency=0.05,
@@ -226,7 +232,11 @@ def test_retrieval_uses_configured_top_k_and_char_budget(db_session: Session, mo
         lambda: SimpleNamespace(
             memory_retrieval_top_k=1,
             memory_context_max_chars=90,
+            memory_context_max_tokens=220,
             memory_retrieval_candidate_multiplier=3,
+            memory_retrieval_profile_top_k=2,
+            memory_retrieval_episodic_top_k=2,
+            memory_retrieval_semantic_top_k=6,
             memory_weight_relevance=0.65,
             memory_weight_importance=0.25,
             memory_weight_recency=0.10,
@@ -277,3 +287,122 @@ def test_normalize_weights_clamps_negative_values() -> None:
     assert relevance == 0.0
     assert importance == 1.0
     assert recency == 0.0
+
+
+def test_retrieval_v2_combines_profile_episodic_and_semantic_layers(db_session: Session) -> None:
+    """Layered retrieval should include profile, episodic, and semantic entries."""
+
+    user = User(email="retrieval-layered@example.com", password_hash="hash")
+    db_session.add(user)
+    db_session.flush()
+
+    chat = Chat(user_id=user.id, assistant_id="default")
+    db_session.add(chat)
+    db_session.flush()
+    db_session.add_all(
+        [
+            UserMemory(user_id=user.id, key="name", value="Alex", importance=0.9),
+            Message(chat_id=chat.id, role="user", content="I had a mock interview yesterday."),
+            VectorMemory(user_id=user.id, text="Practice STAR method for interviews.", importance=0.8),
+        ]
+    )
+    db_session.commit()
+
+    context = build_memory_context(
+        db_session,
+        user_id=user.id,
+        user_query="interview prep",
+        max_items=6,
+        max_chars=400,
+    )
+
+    assert "[S] name: Alex" in context
+    assert "[E] I had a mock interview yesterday." in context
+    assert "[V] Practice STAR method for interviews." in context
+
+
+def test_retrieval_v2_respects_token_budget(db_session: Session, monkeypatch) -> None:
+    """Token-budget packer should cap number of context lines when token budget is tight."""
+
+    monkeypatch.setattr(
+        "app.services.memory.get_settings",
+        lambda: SimpleNamespace(
+            memory_retrieval_top_k=6,
+            memory_context_max_chars=2000,
+            memory_context_max_tokens=14,
+            memory_retrieval_candidate_multiplier=3,
+            memory_retrieval_profile_top_k=0,
+            memory_retrieval_episodic_top_k=0,
+            memory_retrieval_semantic_top_k=6,
+            memory_weight_relevance=0.65,
+            memory_weight_importance=0.25,
+            memory_weight_recency=0.10,
+        ),
+    )
+
+    user = User(email="retrieval-token-budget@example.com", password_hash="hash")
+    db_session.add(user)
+    db_session.flush()
+    db_session.add_all(
+        [
+            VectorMemory(user_id=user.id, text="first memory line with several tokens", importance=0.9),
+            VectorMemory(user_id=user.id, text="second memory line with several tokens", importance=0.85),
+            VectorMemory(user_id=user.id, text="third memory line with several tokens", importance=0.8),
+        ]
+    )
+    db_session.commit()
+
+    context = build_memory_context(db_session, user_id=user.id, user_query="memory line")
+    assert context.count("\n- [") <= 2
+
+
+def test_retrieval_v2_has_deterministic_tie_ordering(db_session: Session) -> None:
+    """Tie scores should be resolved deterministically across repeated calls."""
+
+    user = User(email="retrieval-tie@example.com", password_hash="hash")
+    db_session.add(user)
+    db_session.flush()
+    now = datetime.now(UTC)
+    db_session.add_all(
+        [
+            VectorMemory(user_id=user.id, text="alpha item", importance=0.7, created_at=now),
+            VectorMemory(user_id=user.id, text="beta item", importance=0.7, created_at=now),
+        ]
+    )
+    db_session.commit()
+
+    first = build_memory_context(db_session, user_id=user.id, user_query="", max_items=2, max_chars=200)
+    second = build_memory_context(db_session, user_id=user.id, user_query="", max_items=2, max_chars=200)
+    assert first == second
+
+
+def test_retrieval_v2_episodic_layer_is_user_scoped(db_session: Session) -> None:
+    """Episodic retrieval must not leak messages across users."""
+
+    user_1 = User(email="retrieval-episodic-scope-1@example.com", password_hash="hash")
+    user_2 = User(email="retrieval-episodic-scope-2@example.com", password_hash="hash")
+    db_session.add_all([user_1, user_2])
+    db_session.flush()
+
+    chat_1 = Chat(user_id=user_1.id, assistant_id="default")
+    chat_2 = Chat(user_id=user_2.id, assistant_id="default")
+    db_session.add_all([chat_1, chat_2])
+    db_session.flush()
+    db_session.add_all(
+        [
+            Message(chat_id=chat_1.id, role="user", content="I am preparing for backend interviews."),
+            Message(chat_id=chat_2.id, role="user", content="I am preparing for frontend interviews."),
+        ]
+    )
+    db_session.commit()
+
+    context = build_memory_context(
+        db_session,
+        user_id=user_1.id,
+        user_query="interviews",
+        max_items=5,
+        max_chars=400,
+    )
+
+    assert "backend interviews" in context.lower()
+    assert "frontend interviews" not in context.lower()
