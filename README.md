@@ -639,12 +639,14 @@ Run focused memory tests:
 
 ```bash
 pytest tests/test_memory_pipeline.py
+pytest tests/test_memory_compaction.py
 ```
 
 Operational docs:
 
 - Deployment recipes (cloud/private/mixed): `docs/deployment-recipes.md`
 - Provider outage triage runbook: `docs/runbooks/provider-outage-triage.md`
+- Memory dedup/compaction runbook: `docs/runbooks/memory-dedup-compaction.md`
 
 ## Development Rules
 

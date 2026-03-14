@@ -46,6 +46,7 @@ This file provides project context for AI agents and must stay current.
   - Semantic memory for retrieval chunks and embeddings
 - Retrieval uses layered memory composition with weighted ranking and token-budget packing.
 - Observability exposes memory/retrieval/provider metrics and provider outage runbooks.
+- Memory lifecycle now includes manual vector-memory deduplication/compaction operations (T-006 baseline).
 - Retrieval includes multilingual extraction/tokenization support for:
   - English (`en`)
   - Russian (`ru`)
@@ -57,14 +58,16 @@ This file provides project context for AI agents and must stay current.
   - provider abstraction and runtime routing are implemented;
   - memory orchestration and policy modes are implemented;
   - retrieval v2 and observability are implemented.
+- Memory lifecycle phase has started with T-006 baseline:
+  - deterministic deduplication/compaction for `vector_memory` (exact + near-duplicate rules);
+  - manual execution path first (no scheduler/cron dependency).
 
 ## Behavior Alignment Note
 
-- Current code path is **not strict fail-fast** for all provider scenarios.
-- Chat and embedding layers include explicit safe fallback behavior in several failure paths.
-- ADR/doc alignment for `fail-fast vs fallback` is pending explicit decision:
-  - option A: change code to strict fail-fast;
-  - option B: update architecture/ADR docs to match fallback-first operational behavior.
+- Provider fallback policy is aligned in architecture/ADR docs:
+  - explicit bounded fallback is allowed for selected failure classes;
+  - hidden arbitrary cross-provider retries remain disallowed;
+  - failures must stay visible in logs/metrics.
 
 ## Next Backend Milestone
 
