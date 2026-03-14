@@ -2,12 +2,14 @@
 
 import logging
 from dataclasses import dataclass
+from time import perf_counter
 from typing import Protocol
 
 from openai import OpenAI
 from pydantic import ValidationError
 
 from app.core.config import Settings, get_settings
+from app.services.observability import record_provider_call
 from app.services.provider_utils import PROVIDER_EXCEPTIONS, validate_http_base_url
 
 logger = logging.getLogger(__name__)
@@ -31,7 +33,16 @@ class EchoChatProvider:
     def generate(self, messages: list[dict[str, str]], user_message: str) -> str:
         """Return simple echo fallback."""
 
-        return f"Echo: {user_message.strip()}"
+        started = perf_counter()
+        try:
+            return f"Echo: {user_message.strip()}"
+        finally:
+            record_provider_call(
+                provider_kind="chat",
+                provider_name=self.name,
+                latency_ms=(perf_counter() - started) * 1000.0,
+                success=True,
+            )
 
 
 @dataclass(frozen=True)
@@ -46,14 +57,27 @@ class OpenAIChatProvider:
     def generate(self, messages: list[dict[str, str]], user_message: str) -> str:
         """Generate assistant reply from OpenAI chat completions."""
 
+        started = perf_counter()
         try:
             client = OpenAI(api_key=self.api_key, timeout=self.timeout_seconds)
             response = client.chat.completions.create(
                 model=self.model,
                 messages=messages,
             )
+            record_provider_call(
+                provider_kind="chat",
+                provider_name=self.name,
+                latency_ms=(perf_counter() - started) * 1000.0,
+                success=True,
+            )
             return (response.choices[0].message.content or "").strip()
         except PROVIDER_EXCEPTIONS as exc:
+            record_provider_call(
+                provider_kind="chat",
+                provider_name=self.name,
+                latency_ms=(perf_counter() - started) * 1000.0,
+                success=False,
+            )
             logger.warning(
                 "openai_chat_call_failed model=%s error_type=%s",
                 self.model,
@@ -75,6 +99,7 @@ class LocalHTTPChatProvider:
     def generate(self, messages: list[dict[str, str]], user_message: str) -> str:
         """Generate assistant reply using local OpenAI-compatible endpoint."""
 
+        started = perf_counter()
         try:
             client = OpenAI(
                 base_url=self.base_url,
@@ -85,8 +110,20 @@ class LocalHTTPChatProvider:
                 model=self.model,
                 messages=messages,
             )
+            record_provider_call(
+                provider_kind="chat",
+                provider_name=self.name,
+                latency_ms=(perf_counter() - started) * 1000.0,
+                success=True,
+            )
             return (response.choices[0].message.content or "").strip()
         except PROVIDER_EXCEPTIONS as exc:
+            record_provider_call(
+                provider_kind="chat",
+                provider_name=self.name,
+                latency_ms=(perf_counter() - started) * 1000.0,
+                success=False,
+            )
             logger.warning(
                 "local_http_chat_call_failed model=%s error_type=%s",
                 self.model,

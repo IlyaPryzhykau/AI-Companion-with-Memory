@@ -671,6 +671,12 @@ Health check endpoint:
 GET /api/v1/health
 ```
 
+Operational metrics endpoint:
+
+```text
+GET /api/v1/metrics
+```
+
 Auth endpoints:
 
 ```text
@@ -696,6 +702,11 @@ Run focused memory tests:
 ```bash
 pytest tests/test_memory_pipeline.py
 ```
+
+Operational docs:
+
+- Deployment recipes (cloud/private/mixed): `docs/deployment-recipes.md`
+- Provider outage triage runbook: `docs/runbooks/provider-outage-triage.md`
 
 ## Development Rules
 

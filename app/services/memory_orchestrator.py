@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.models.memory import MemoryActionAudit
 from app.services.memory_actions import MemoryAction
 from app.services.memory import extract_structured_facts, store_vector_memory, upsert_structured_memory
+from app.services.observability import record_memory_action
 from app.services.memory_policy import apply_memory_policy
 
 _SKIP_PHRASES = {
@@ -142,6 +143,7 @@ def apply_memory_actions(
     actions = apply_memory_policy(user_message=user_message, actions=planned_actions)
 
     for action in actions:
+        record_memory_action(action.action_type)
         if action.action_type == "UPSERT_FACTS":
             facts_payload = action.payload.get("facts", [])
             facts: list[tuple[str, str, float]] = [
