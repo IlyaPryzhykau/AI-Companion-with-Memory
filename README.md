@@ -406,89 +406,23 @@ React
 
 ## Development Roadmap
 
-### Phase 1: Core Backend
-
-Goal: build the base AI chat backend.
-
-Features:
+Completed:
 
 ```text
-user auth
-chat endpoint
-LLM integration
-message storage
-basic prompt system
+T-001 Provider abstraction and runtime routing
+T-002 Rules-based memory orchestrator + action audit
+T-003 Optional LLM policy mode for memory actions
+T-004 Retrieval v2 (layered retrieval + budgeted packing)
+T-005 Operations and observability (metrics + runbooks)
 ```
 
-### Phase 2: Memory System
-
-Add memory support.
-
-Features:
+Planned next:
 
 ```text
-vector DB
-memory extraction
-semantic search
-prompt memory injection
-```
-
-### Phase 3: Telegram Bot
-
-Add Telegram interface.
-
-Features:
-
-```text
-telegram bot
-user linking
-message routing
-notifications
-```
-
-### Phase 4: Reminder System
-
-Add reminders.
-
-Features:
-
-```text
-reminder creation
-scheduler
-reminder notifications
-```
-
-### Phase 5: Memory Optimization
-
-Add:
-
-```text
-memory consolidation
-importance scoring
-memory cleanup
-conversation summarization
-```
-
-### Phase 6: English Mode
-
-Add English learning mode.
-
-Features:
-
-```text
-grammar correction
-conversation practice
-vocabulary cards
-```
-
-### Phase 7: Voice Interface
-
-Add:
-
-```text
-speech to text
-text to speech
-voice conversation
+T-006 Memory deduplication and compaction
+T-007 TTL and retention policies
+T-008 Internal memory inspection/management APIs
+T-009 Retrieval evaluation harness
 ```
 
 ## Future Features
@@ -536,13 +470,13 @@ multi-platform communication works
 
 ## Next Step
 
-Start implementation with:
+Focus on memory lifecycle and quality controls:
 
 ```text
-FastAPI project skeleton
-auth system
-chat endpoint
-LLM integration
+deduplication and compaction
+retention/TTL policies
+internal memory management APIs
+retrieval evaluation harness
 ```
 
 ## Local Configuration
@@ -621,6 +555,10 @@ Memory policy mode:
 - `MEMORY_POLICY_MODE=llm` enables model-based allow/deny filtering on top of rules.
 - If policy output is invalid/low-confidence, system safely falls back to rules decisions.
 - Sensitive content guardrail blocks persistence of likely secrets by default.
+
+Fail-fast vs fallback note:
+- Current implementation uses explicit safe fallbacks in several provider paths.
+- Architecture-level policy alignment (`strict fail-fast` vs `documented fallback behavior`) is tracked as a separate decision step.
 
 ## Backend Quick Start
 
