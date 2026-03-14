@@ -11,6 +11,7 @@ from app.core.config import get_settings
 from app.db.base import Base
 from app.db.session import get_db_session
 from app.main import app
+from app.services.observability import reset_metrics
 
 TEST_DATABASE_URL = "sqlite:///./test.db"
 
@@ -40,6 +41,17 @@ def force_local_assistant_provider(monkeypatch: pytest.MonkeyPatch) -> Generator
         yield
     finally:
         get_settings.cache_clear()
+
+
+@pytest.fixture(autouse=True)
+def clear_observability_metrics() -> Generator[None, None, None]:
+    """Reset in-process metrics to keep tests isolated."""
+
+    reset_metrics()
+    try:
+        yield
+    finally:
+        reset_metrics()
 
 
 @pytest.fixture

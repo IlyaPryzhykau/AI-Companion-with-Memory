@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from app.models.chat import Chat, Message
 from app.core.config import get_settings
 from app.models.memory import UserMemory
+from app.services.observability import record_retrieval
 from app.services.vector_store import (
     SUPPORTED_EMBEDDING_DIMENSIONS,
     JsonVectorStore,
@@ -476,6 +477,13 @@ def build_memory_context(
         candidates=top_candidates,
         char_budget=content_budget,
         token_budget=policy.max_tokens,
+    )
+    record_retrieval(
+        selected_count=len(lines),
+        char_budget=content_budget,
+        chars_used=chars_used,
+        token_budget=policy.max_tokens,
+        tokens_used=tokens_used,
     )
 
     if not lines:

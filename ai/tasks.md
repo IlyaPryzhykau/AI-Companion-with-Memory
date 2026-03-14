@@ -95,6 +95,22 @@ Implemented in:
 - Add dashboards/log fields for per-provider latency and failures.
 - Document cloud/private/mixed deployment recipes.
 
+Status: DONE
+
+Implemented in:
+
+- `app/services/observability.py`
+- `app/services/chat_providers.py`
+- `app/services/embeddings.py`
+- `app/services/memory.py`
+- `app/services/memory_orchestrator.py`
+- `app/api/v1/metrics.py`
+- `app/api/v1/router.py`
+- `tests/test_metrics.py`
+- `docs/deployment-recipes.md`
+- `docs/runbooks/provider-outage-triage.md`
+- `README.md`
+
 **Definition of done**
 - Dashboards include provider error rate and p95 latency.
 - Runbook section exists for provider outage triage.

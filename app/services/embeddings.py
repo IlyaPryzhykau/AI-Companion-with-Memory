@@ -4,12 +4,14 @@ import hashlib
 import logging
 import math
 from dataclasses import dataclass
+from time import perf_counter
 from typing import Protocol
 
 from openai import OpenAI
 from pydantic import ValidationError
 
 from app.core.config import Settings, get_settings
+from app.services.observability import record_provider_call
 from app.services.provider_utils import PROVIDER_EXCEPTIONS, validate_http_base_url
 from app.services.vector_validation import validate_embedding_vector
 
@@ -43,9 +45,16 @@ class LocalHashEmbeddingProvider:
     def embed(self, text: str, dimensions: int) -> list[float]:
         """Build deterministic token-hash embedding and validate dimensions."""
 
+        started = perf_counter()
         vector = [0.0] * dimensions
         tokens = [token for token in text.lower().split() if token]
         if not tokens:
+            record_provider_call(
+                provider_kind="embedding",
+                provider_name=self.name,
+                latency_ms=(perf_counter() - started) * 1000.0,
+                success=True,
+            )
             return vector
 
         for token in tokens:
@@ -55,7 +64,14 @@ class LocalHashEmbeddingProvider:
             weight = 1.0 + (digest[3] / 255.0) * 0.1
             vector[index] += sign * weight
 
-        return validate_embedding_vector(_normalize(vector), expected_dimensions=dimensions)
+        result = validate_embedding_vector(_normalize(vector), expected_dimensions=dimensions)
+        record_provider_call(
+            provider_kind="embedding",
+            provider_name=self.name,
+            latency_ms=(perf_counter() - started) * 1000.0,
+            success=True,
+        )
+        return result
 
 
 @dataclass(frozen=True)
@@ -70,6 +86,7 @@ class OpenAIEmbeddingProvider:
     def embed(self, text: str, dimensions: int) -> list[float]:
         """Generate embedding from OpenAI API and validate output shape."""
 
+        started = perf_counter()
         try:
             client = OpenAI(api_key=self.api_key, timeout=self.timeout_seconds)
             response = client.embeddings.create(
@@ -89,8 +106,21 @@ class OpenAIEmbeddingProvider:
                     f"expected {dimensions}, got {len(response.data[0].embedding)}."
                 )
             vector = [float(value) for value in response.data[0].embedding]
-            return validate_embedding_vector(vector, expected_dimensions=dimensions)
+            result = validate_embedding_vector(vector, expected_dimensions=dimensions)
+            record_provider_call(
+                provider_kind="embedding",
+                provider_name=self.name,
+                latency_ms=(perf_counter() - started) * 1000.0,
+                success=True,
+            )
+            return result
         except PROVIDER_EXCEPTIONS as exc:
+            record_provider_call(
+                provider_kind="embedding",
+                provider_name=self.name,
+                latency_ms=(perf_counter() - started) * 1000.0,
+                success=False,
+            )
             logger.warning(
                 "openai_embedding_call_failed model=%s error_type=%s",
                 self.model,
@@ -114,6 +144,7 @@ class LocalHTTPEmbeddingProvider:
     def embed(self, text: str, dimensions: int) -> list[float]:
         """Generate embedding from local OpenAI-compatible API and validate output shape."""
 
+        started = perf_counter()
         try:
             client = OpenAI(
                 base_url=self.base_url,
@@ -137,8 +168,21 @@ class LocalHTTPEmbeddingProvider:
                     f"expected {dimensions}, got {len(response.data[0].embedding)}."
                 )
             vector = [float(value) for value in response.data[0].embedding]
-            return validate_embedding_vector(vector, expected_dimensions=dimensions)
+            result = validate_embedding_vector(vector, expected_dimensions=dimensions)
+            record_provider_call(
+                provider_kind="embedding",
+                provider_name=self.name,
+                latency_ms=(perf_counter() - started) * 1000.0,
+                success=True,
+            )
+            return result
         except PROVIDER_EXCEPTIONS as exc:
+            record_provider_call(
+                provider_kind="embedding",
+                provider_name=self.name,
+                latency_ms=(perf_counter() - started) * 1000.0,
+                success=False,
+            )
             logger.warning(
                 "local_http_embedding_call_failed model=%s error_type=%s",
                 self.model,
