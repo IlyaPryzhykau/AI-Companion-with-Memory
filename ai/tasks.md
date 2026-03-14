@@ -114,3 +114,51 @@ Implemented in:
 **Definition of done**
 - Dashboards include provider error rate and p95 latency.
 - Runbook section exists for provider outage triage.
+
+## T-006 Memory deduplication and compaction
+
+- Add a lightweight deduplication service for semantic and episodic memory.
+- Define deterministic duplicate detection rules and merge/skip behavior.
+- Add a manual execution path first; keep scheduling optional for a later worker.
+- Add tests for duplicate, near-duplicate, and cross-user isolation cases.
+
+**Definition of done**
+- Duplicate memories are not re-saved or are compacted deterministically according to documented rules.
+- Tests cover user isolation and at least one false-positive guard case.
+- Operational notes describe how to run dedup safely.
+
+## T-007 TTL and retention policies
+
+- Add configurable TTL/retention policies by memory scope/category.
+- Ensure expired memories are excluded from retrieval and optionally cleaned up.
+- Support explicit retention metadata on stored memory records.
+- Add tests for expiry boundaries and retrieval behavior before/after expiration.
+
+**Definition of done**
+- Expired memories are deterministically excluded from retrieval.
+- Tests cover boundary timestamps and different memory scopes.
+- Retention behavior is documented in config/docs.
+
+## T-008 Internal memory inspection and management API
+
+- Add backend endpoints for listing, filtering, and deleting memory records by user and scope.
+- Include audit-friendly metadata in responses so operators can understand why memory exists.
+- Keep auth and authorization explicit; do not expose cross-user access accidentally.
+- Add integration tests for auth, filtering, and deletion behavior.
+
+**Definition of done**
+- Operators can inspect memory without direct DB access.
+- Delete/update actions are authenticated, authorized, and tested.
+- Response contracts are documented for future frontend use.
+
+## T-009 Retrieval evaluation harness
+
+- Add repeatable evaluation fixtures/scenarios for retrieval usefulness.
+- Record baseline metrics for ranking quality before further retrieval changes.
+- Make evaluation deterministic enough for regression gating in PRs or release checks.
+- Add documentation describing how to run and interpret the evaluation suite.
+
+**Definition of done**
+- Retrieval changes can be compared against a stable baseline.
+- Evaluation output highlights regressions clearly enough for release decisions.
+- At least one multilingual scenario is included in the harness.
