@@ -590,7 +590,11 @@ Memory retrieval policy is configurable via environment variables:
 ```text
 MEMORY_RETRIEVAL_TOP_K=6
 MEMORY_RETRIEVAL_CANDIDATE_MULTIPLIER=3
+MEMORY_RETRIEVAL_PROFILE_TOP_K=2
+MEMORY_RETRIEVAL_EPISODIC_TOP_K=2
+MEMORY_RETRIEVAL_SEMANTIC_TOP_K=6
 MEMORY_CONTEXT_MAX_CHARS=800
+MEMORY_CONTEXT_MAX_TOKENS=220
 MEMORY_WEIGHT_RELEVANCE=0.65
 MEMORY_WEIGHT_IMPORTANCE=0.25
 MEMORY_WEIGHT_RECENCY=0.10
@@ -607,6 +611,11 @@ score = (relevance * MEMORY_WEIGHT_RELEVANCE)
 ```
 
 Weights are normalized at runtime, and memory context is trimmed to `MEMORY_CONTEXT_MAX_CHARS`.
+Retrieval v2 combines layered candidates:
+- profile layer (`user_memory`)
+- episodic layer (recent user chat messages)
+- semantic layer (`vector_memory`)
+Each layer is pre-limited by its own top-k before global weighted ranking and packing.
 Memory policy mode:
 - `MEMORY_POLICY_MODE=rules` (default) uses deterministic orchestration only.
 - `MEMORY_POLICY_MODE=llm` enables model-based allow/deny filtering on top of rules.

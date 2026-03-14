@@ -10,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import DBAPIError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from app.models.chat import Chat, Message
 from app.core.config import get_settings
 from app.models.memory import UserMemory
 from app.services.vector_store import (
@@ -133,7 +134,11 @@ class RetrievalPolicy:
 
     top_k: int
     max_chars: int
+    max_tokens: int
     candidate_multiplier: int
+    profile_top_k: int
+    episodic_top_k: int
+    semantic_top_k: int
     weight_relevance: float
     weight_importance: float
     weight_recency: float
@@ -344,6 +349,65 @@ def _build_vector_candidates(
     return candidates
 
 
+def _build_episodic_candidates(
+    db: Session,
+    user_id: int,
+    user_query: str,
+    now: datetime,
+    policy: RetrievalPolicy,
+) -> list[MemoryCandidate]:
+    """Build scored episodic candidates from recent user messages."""
+
+    safe_user_id = _validate_user_id(user_id, log_prefix="episodic_retrieval")
+    if safe_user_id is None:
+        return []
+
+    row_limit = min(100, max(5, policy.episodic_top_k * policy.candidate_multiplier * 3))
+    try:
+        rows = (
+            db.execute(
+                select(Message.content, Message.created_at)
+                .join(Chat, Chat.id == Message.chat_id)
+                .where(Chat.user_id == safe_user_id, Message.role == "user")
+                .order_by(Message.id.desc())
+                .limit(row_limit)
+            )
+            .all()
+        )
+    except (SQLAlchemyError, DBAPIError) as exc:
+        logger.warning(
+            "episodic_retrieval_failed user_id=%s error_type=%s",
+            safe_user_id,
+            type(exc).__name__,
+        )
+        return []
+
+    candidates: list[MemoryCandidate] = []
+    for content, created_at in rows:
+        text = (content or "").strip()
+        if not text:
+            continue
+        relevance = _relevance_score(user_query, text)
+        recency = _recency_score(created_at, now)
+        importance = 0.50
+        score = (
+            (importance * policy.weight_importance)
+            + (relevance * policy.weight_relevance)
+            + (recency * policy.weight_recency)
+        )
+        candidates.append(
+            MemoryCandidate(
+                kind="episodic",
+                text=text,
+                importance=importance,
+                recency_score=recency,
+                relevance_score=relevance,
+                final_score=score,
+            )
+        )
+    return candidates
+
+
 def build_memory_context(
     db: Session,
     user_id: int,
@@ -353,25 +417,54 @@ def build_memory_context(
 ) -> str:
     """Build ranked memory context for prompt assembly with budget limits."""
 
+    safe_user_id = _validate_user_id(user_id, log_prefix="memory_retrieval")
+    if safe_user_id is None:
+        return ""
+
     policy = _resolve_retrieval_policy(max_items=max_items, max_chars=max_chars)
     vector_store = _resolve_vector_store()
-    facts = db.execute(select(UserMemory).where(UserMemory.user_id == user_id)).scalars().all()
-    semantic = vector_store.search(
-        db=db,
-        user_id=user_id,
-        query=user_query,
-        limit=policy.top_k * policy.candidate_multiplier,
-    )
+    try:
+        facts = db.execute(select(UserMemory).where(UserMemory.user_id == safe_user_id)).scalars().all()
+    except (SQLAlchemyError, DBAPIError) as exc:
+        logger.warning(
+            "structured_retrieval_failed user_id=%s error_type=%s",
+            safe_user_id,
+            type(exc).__name__,
+        )
+        facts = []
+
+    semantic_limit = max(1, policy.semantic_top_k) * policy.candidate_multiplier
+    try:
+        semantic = vector_store.search(
+            db=db,
+            user_id=safe_user_id,
+            query=user_query,
+            limit=semantic_limit,
+        )
+    except Exception as exc:
+        logger.warning(
+            "semantic_retrieval_failed user_id=%s backend=%s error_type=%s",
+            safe_user_id,
+            type(vector_store).__name__,
+            type(exc).__name__,
+        )
+        semantic = []
 
     now = datetime.now(UTC)
-    candidates = _build_structured_candidates(facts, user_query, now, policy=policy)
-    candidates.extend(_build_vector_candidates(semantic, now, policy=policy))
+    structured_candidates = _build_structured_candidates(facts, user_query, now, policy=policy)
+    episodic_candidates = _build_episodic_candidates(db, safe_user_id, user_query, now, policy=policy)
+    semantic_candidates = _build_vector_candidates(semantic, now, policy=policy)
 
-    sorted_candidates = sorted(
-        candidates,
-        key=lambda item: (item.final_score, item.importance, item.recency_score),
-        reverse=True,
-    )
+    structured_candidates = _rank_candidates(structured_candidates)[: policy.profile_top_k]
+    episodic_candidates = _rank_candidates(episodic_candidates)[: policy.episodic_top_k]
+    semantic_candidates = _rank_candidates(semantic_candidates)[: policy.semantic_top_k]
+
+    candidates: list[MemoryCandidate] = []
+    candidates.extend(structured_candidates)
+    candidates.extend(episodic_candidates)
+    candidates.extend(semantic_candidates)
+
+    sorted_candidates = _rank_candidates(candidates)
     top_candidates = sorted_candidates[: policy.top_k]
 
     header = "Retrieved memory context:"
@@ -379,24 +472,11 @@ def build_memory_context(
     if content_budget == 0:
         return ""
 
-    lines: list[str] = []
-    chars_used = 0
-    dropped_due_to_budget = 0
-    for candidate in top_candidates:
-        prefix = "S" if candidate.kind == "structured" else "V"
-        line = f"- [{prefix}] {candidate.text.strip()}"
-        if len(line) > content_budget:
-            if content_budget <= 3:
-                dropped_due_to_budget += 1
-                continue
-            line = f"{line[: content_budget - 3].rstrip()}..."
-
-        projected = chars_used + len(line) + (1 if lines else 0)
-        if projected > content_budget:
-            dropped_due_to_budget += 1
-            continue
-        lines.append(line)
-        chars_used = projected
+    lines, chars_used, tokens_used, dropped_due_to_budget = _pack_candidates(
+        candidates=top_candidates,
+        char_budget=content_budget,
+        token_budget=policy.max_tokens,
+    )
 
     if not lines:
         return ""
@@ -409,16 +489,24 @@ def build_memory_context(
         for item in top_candidates[: min(len(top_candidates), 5)]
     ]
     logger.info(
-        "memory_retrieval user_id=%s backend=%s query_tokens=%s candidates=%s selected=%s dropped_budget=%s top_k=%s max_chars=%s used_chars=%s weights=(rel=%.2f,imp=%.2f,rec=%.2f) selected_candidates=%s",
-        user_id,
+        "memory_retrieval user_id=%s backend=%s query_tokens=%s candidates_total=%s structured=%s episodic=%s semantic=%s selected=%s dropped_budget=%s top_k=%s max_chars=%s max_tokens=%s used_chars=%s used_tokens=%s layer_limits=(profile=%s,episodic=%s,semantic=%s) weights=(rel=%.2f,imp=%.2f,rec=%.2f) selected_candidates=%s",
+        safe_user_id,
         type(vector_store).__name__,
         len(_tokenize(user_query)),
         len(candidates),
+        len(structured_candidates),
+        len(episodic_candidates),
+        len(semantic_candidates),
         len(lines),
         dropped_due_to_budget,
         policy.top_k,
         content_budget,
+        policy.max_tokens,
         chars_used,
+        tokens_used,
+        policy.profile_top_k,
+        policy.episodic_top_k,
+        policy.semantic_top_k,
         policy.weight_relevance,
         policy.weight_importance,
         policy.weight_recency,
@@ -470,31 +558,147 @@ def _resolve_retrieval_policy(max_items: int | None, max_chars: int | None) -> R
                 min_value=80,
                 max_value=8000,
             ),
+            max_tokens=220,
             candidate_multiplier=3,
+            profile_top_k=2,
+            episodic_top_k=2,
+            semantic_top_k=6,
             weight_relevance=0.65,
             weight_importance=0.25,
             weight_recency=0.10,
         )
-    configured_top_k = settings.memory_retrieval_top_k if max_items is None else max_items
-    configured_max_chars = settings.memory_context_max_chars if max_chars is None else max_chars
-    top_k = _coerce_int(configured_top_k, default=6, min_value=1, max_value=20)
-    max_context_chars = _coerce_int(configured_max_chars, default=800, min_value=80, max_value=8000)
-    multiplier = _coerce_int(
-        settings.memory_retrieval_candidate_multiplier,
-        default=3,
-        min_value=1,
-        max_value=10,
-    )
+    try:
+        configured_top_k = settings.memory_retrieval_top_k if max_items is None else max_items
+        configured_max_chars = settings.memory_context_max_chars if max_chars is None else max_chars
+        raw_max_tokens = settings.memory_context_max_tokens
+        raw_multiplier = settings.memory_retrieval_candidate_multiplier
+        raw_profile_top_k = settings.memory_retrieval_profile_top_k
+        raw_episodic_top_k = settings.memory_retrieval_episodic_top_k
+        raw_semantic_top_k = settings.memory_retrieval_semantic_top_k
+        raw_weight_relevance = settings.memory_weight_relevance
+        raw_weight_importance = settings.memory_weight_importance
+        raw_weight_recency = settings.memory_weight_recency
+    except AttributeError as exc:
+        logger.warning(
+            "memory_retrieval_settings_attribute_missing error_type=%s using_defaults=true",
+            type(exc).__name__,
+        )
+        configured_top_k = 6 if max_items is None else max_items
+        configured_max_chars = 800 if max_chars is None else max_chars
+        raw_max_tokens = 220
+        raw_multiplier = 3
+        raw_profile_top_k = 2
+        raw_episodic_top_k = 2
+        raw_semantic_top_k = 6
+        raw_weight_relevance = 0.65
+        raw_weight_importance = 0.25
+        raw_weight_recency = 0.10
+
+    top_k = _coerce_int(_coalesce(configured_top_k, 6), default=6, min_value=1, max_value=20)
+    max_context_chars = _coerce_int(_coalesce(configured_max_chars, 800), default=800, min_value=80, max_value=8000)
+    max_context_tokens = _coerce_int(_coalesce(raw_max_tokens, 220), default=220, min_value=20, max_value=4000)
+    multiplier = _coerce_int(_coalesce(raw_multiplier, 3), default=3, min_value=1, max_value=10)
+    profile_top_k = _coerce_int(_coalesce(raw_profile_top_k, 2), default=2, min_value=0, max_value=20)
+    episodic_top_k = _coerce_int(_coalesce(raw_episodic_top_k, 2), default=2, min_value=0, max_value=20)
+    semantic_top_k = _coerce_int(_coalesce(raw_semantic_top_k, 6), default=6, min_value=0, max_value=50)
     weights = _normalize_weights(
-        settings.memory_weight_relevance,
-        settings.memory_weight_importance,
-        settings.memory_weight_recency,
+        _coalesce(raw_weight_relevance, 0.65),
+        _coalesce(raw_weight_importance, 0.25),
+        _coalesce(raw_weight_recency, 0.10),
     )
     return RetrievalPolicy(
         top_k=top_k,
         max_chars=max_context_chars,
+        max_tokens=max_context_tokens,
         candidate_multiplier=multiplier,
+        profile_top_k=profile_top_k,
+        episodic_top_k=episodic_top_k,
+        semantic_top_k=semantic_top_k,
         weight_relevance=weights[0],
         weight_importance=weights[1],
         weight_recency=weights[2],
     )
+
+
+def _rank_candidates(candidates: list[MemoryCandidate]) -> list[MemoryCandidate]:
+    """Sort candidates deterministically by score and stable tie-breakers."""
+
+    kind_priority = {"structured": 3, "episodic": 2, "semantic": 1}
+    return sorted(
+        candidates,
+        key=lambda item: (
+            item.final_score,
+            item.importance,
+            item.recency_score,
+            kind_priority.get(item.kind, 0),
+            item.text.lower(),
+        ),
+        reverse=True,
+    )
+
+
+def _estimate_token_count(text: str) -> int:
+    """Approximate token count for budget packing."""
+
+    if not isinstance(text, str):
+        return 1
+    try:
+        words = len(re.findall(r"\S+", text))
+    except re.error:
+        return max(1, len(text) // 4)
+    return max(1, int(words * 1.3))
+
+
+def _coalesce(value, fallback):
+    """Return fallback when value is None."""
+
+    return fallback if value is None else value
+
+
+def _validate_user_id(user_id: int, log_prefix: str) -> int | None:
+    """Validate user identifier for retrieval queries."""
+
+    try:
+        safe_user_id = int(user_id)
+    except (TypeError, ValueError):
+        logger.warning("%s_invalid_user_id user_id=%r", log_prefix, user_id)
+        return None
+    if safe_user_id <= 0:
+        logger.warning("%s_invalid_user_id_non_positive user_id=%r", log_prefix, user_id)
+        return None
+    return safe_user_id
+
+
+def _pack_candidates(
+    candidates: list[MemoryCandidate],
+    char_budget: int,
+    token_budget: int,
+) -> tuple[list[str], int, int, int]:
+    """Pack context lines under char and token budgets."""
+
+    lines: list[str] = []
+    chars_used = 0
+    tokens_used = 0
+    dropped_due_to_budget = 0
+
+    for candidate in candidates:
+        prefix = {"structured": "S", "episodic": "E", "semantic": "V"}.get(candidate.kind, "M")
+        line = f"- [{prefix}] {candidate.text.strip()}"
+        if len(line) > char_budget:
+            if char_budget <= 3:
+                dropped_due_to_budget += 1
+                continue
+            line = f"{line[: char_budget - 3].rstrip()}..."
+
+        line_tokens = _estimate_token_count(line)
+        projected_chars = chars_used + len(line) + (1 if lines else 0)
+        projected_tokens = tokens_used + line_tokens
+        if projected_chars > char_budget or projected_tokens > token_budget:
+            dropped_due_to_budget += 1
+            continue
+
+        lines.append(line)
+        chars_used = projected_chars
+        tokens_used = projected_tokens
+
+    return lines, chars_used, tokens_used, dropped_due_to_budget

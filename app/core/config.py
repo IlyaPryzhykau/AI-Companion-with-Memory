@@ -110,11 +110,35 @@ class Settings(BaseSettings):
         ge=1,
         le=10,
     )
+    memory_retrieval_profile_top_k: int = Field(
+        default=2,
+        alias="MEMORY_RETRIEVAL_PROFILE_TOP_K",
+        ge=0,
+        le=20,
+    )
+    memory_retrieval_episodic_top_k: int = Field(
+        default=2,
+        alias="MEMORY_RETRIEVAL_EPISODIC_TOP_K",
+        ge=0,
+        le=20,
+    )
+    memory_retrieval_semantic_top_k: int = Field(
+        default=6,
+        alias="MEMORY_RETRIEVAL_SEMANTIC_TOP_K",
+        ge=0,
+        le=50,
+    )
     memory_context_max_chars: int = Field(
         default=800,
         alias="MEMORY_CONTEXT_MAX_CHARS",
         ge=50,
         le=10000,
+    )
+    memory_context_max_tokens: int = Field(
+        default=220,
+        alias="MEMORY_CONTEXT_MAX_TOKENS",
+        ge=20,
+        le=4000,
     )
     memory_weight_relevance: float = Field(
         default=0.65,

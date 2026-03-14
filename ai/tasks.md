@@ -75,6 +75,16 @@ Implemented in:
 - Add token-budget packer and weighted ranking controls.
 - Validate response quality via scenario tests.
 
+Status: DONE
+
+Implemented in:
+
+- `app/services/memory.py`
+- `app/core/config.py`
+- `tests/test_memory_retrieval.py`
+- `.env.example`
+- `README.md`
+
 **Definition of done**
 - Deterministic ordering for tie scores.
 - User isolation tests cover `user_id` boundaries.
