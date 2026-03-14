@@ -38,7 +38,7 @@ This file provides project context for AI agents and must stay current.
 
 ## Memory System (Current)
 
-- Provider abstraction supports runtime switching for chat and embeddings (`openai|local`) with explicit error mapping.
+- Provider abstraction supports runtime switching for chat and embeddings (`openai|local|local_http`) with explicit error mapping.
 - Memory orchestration supports `rules` and optional `llm_policy` modes with auditable memory actions.
 - Memory scopes are split into:
   - Profile memory for durable user facts
@@ -57,6 +57,14 @@ This file provides project context for AI agents and must stay current.
   - provider abstraction and runtime routing are implemented;
   - memory orchestration and policy modes are implemented;
   - retrieval v2 and observability are implemented.
+
+## Behavior Alignment Note
+
+- Current code path is **not strict fail-fast** for all provider scenarios.
+- Chat and embedding layers include explicit safe fallback behavior in several failure paths.
+- ADR/doc alignment for `fail-fast vs fallback` is pending explicit decision:
+  - option A: change code to strict fail-fast;
+  - option B: update architecture/ADR docs to match fallback-first operational behavior.
 
 ## Next Backend Milestone
 
