@@ -358,13 +358,8 @@ def _build_episodic_candidates(
 ) -> list[MemoryCandidate]:
     """Build scored episodic candidates from recent user messages."""
 
-    try:
-        safe_user_id = int(user_id)
-    except (TypeError, ValueError):
-        logger.warning("episodic_retrieval_invalid_user_id user_id=%r", user_id)
-        return []
-    if safe_user_id <= 0:
-        logger.warning("episodic_retrieval_invalid_user_id_non_positive user_id=%r", user_id)
+    safe_user_id = _validate_user_id(user_id, log_prefix="episodic_retrieval")
+    if safe_user_id is None:
         return []
 
     row_limit = min(100, max(5, policy.episodic_top_k * policy.candidate_multiplier * 3))
@@ -422,13 +417,8 @@ def build_memory_context(
 ) -> str:
     """Build ranked memory context for prompt assembly with budget limits."""
 
-    try:
-        safe_user_id = int(user_id)
-    except (TypeError, ValueError):
-        logger.warning("memory_retrieval_invalid_user_id user_id=%r", user_id)
-        return ""
-    if safe_user_id <= 0:
-        logger.warning("memory_retrieval_invalid_user_id_non_positive user_id=%r", user_id)
+    safe_user_id = _validate_user_id(user_id, log_prefix="memory_retrieval")
+    if safe_user_id is None:
         return ""
 
     policy = _resolve_retrieval_policy(max_items=max_items, max_chars=max_chars)
@@ -655,7 +645,7 @@ def _estimate_token_count(text: str) -> int:
     try:
         words = len(re.findall(r"\S+", text))
     except re.error:
-        return 1
+        return max(1, len(text) // 4)
     return max(1, int(words * 1.3))
 
 
@@ -663,6 +653,20 @@ def _coalesce(value, fallback):
     """Return fallback when value is None."""
 
     return fallback if value is None else value
+
+
+def _validate_user_id(user_id: int, log_prefix: str) -> int | None:
+    """Validate user identifier for retrieval queries."""
+
+    try:
+        safe_user_id = int(user_id)
+    except (TypeError, ValueError):
+        logger.warning("%s_invalid_user_id user_id=%r", log_prefix, user_id)
+        return None
+    if safe_user_id <= 0:
+        logger.warning("%s_invalid_user_id_non_positive user_id=%r", log_prefix, user_id)
+        return None
+    return safe_user_id
 
 
 def _pack_candidates(
