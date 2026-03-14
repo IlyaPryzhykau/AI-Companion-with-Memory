@@ -46,3 +46,5 @@ Responsibilities:
 - Do not push direct changes to `main`.
 - All changes must be done in a branch and merged via pull request.
 - `AI_PROJECT.md` must be kept up to date whenever architecture, core flows, or stack decisions change.
+- When posting PR comments from PowerShell, always use a here-string body (`$body = @"..."@; gh pr comment --body $body`) so line breaks render correctly.
+- Do not send escaped newline sequences (`\n`) in `gh pr comment` command strings.
