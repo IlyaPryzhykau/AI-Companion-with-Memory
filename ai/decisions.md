@@ -37,3 +37,13 @@
 - **Consequences:**
   - Operational issues are visible immediately.
   - Requires clear error mapping and dashboarding for provider incidents.
+
+## ADR-005: Kubernetes-ready deployment with modular monolith backend
+
+- **Status:** accepted
+- **Context:** The product is expected to grow to include backend, frontend, background jobs, and optional local model-serving. We want to learn and adopt Kubernetes, but splitting the backend into multiple services right now would add delivery and coordination overhead.
+- **Decision:** Keep the codebase in a single repository and keep the backend as a modular monolith for now. Prepare deployment boundaries so API, future frontend, background jobs, Redis, and optional local model-serving can run as separate Kubernetes workloads/pods.
+- **Consequences:**
+  - Easier iteration on backend-first product work and shared contracts.
+  - Kubernetes learning path remains available through runtime separation.
+  - Internal module boundaries must stay explicit so future extraction remains possible if justified later.

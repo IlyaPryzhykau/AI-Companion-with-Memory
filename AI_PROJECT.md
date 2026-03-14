@@ -21,8 +21,9 @@ This file provides project context for AI agents and must stay current.
 - Cache/queue support: Redis
 - Migrations: Alembic
 - Vector support: pgvector when available, JSON fallback mode by explicit migration opt-in
-- LLM/Embeddings providers: OpenAI + local fallback providers
+- LLM/Embeddings providers: OpenAI + local HTTP-compatible providers
 - Containerization: Docker Compose
+- Deployment direction: Kubernetes-ready multi-service deployment with separate pods per runtime component
 
 ## Core Runtime Flow (Chat)
 
@@ -37,19 +38,45 @@ This file provides project context for AI agents and must stay current.
 
 ## Memory System (Current)
 
-- Structured memory table: key/value user facts (for example `name`, `goal`, `location`).
-- Semantic memory table: text + embedding payload.
+- Provider abstraction supports runtime switching for chat and embeddings (`openai|local`) with explicit error mapping.
+- Memory orchestration supports `rules` and optional `llm_policy` modes with auditable memory actions.
+- Memory scopes are split into:
+  - Profile memory for durable user facts
+  - Episodic memory for conversation events
+  - Semantic memory for retrieval chunks and embeddings
+- Retrieval uses layered memory composition with weighted ranking and token-budget packing.
+- Observability exposes memory/retrieval/provider metrics and provider outage runbooks.
 - Retrieval includes multilingual extraction/tokenization support for:
   - English (`en`)
   - Russian (`ru`)
   - Czech (`cs`)
 
-## Planned Architecture Evolution
+## Current Architecture Status
 
-- Introduce provider abstraction for chat + embeddings with config-based runtime switching (`openai|local`) and explicit provider error mapping.
-- Add agentic memory orchestrator that emits typed memory actions with a default rules mode and auditable decisions.
-- Evolve memory model into profile + episodic + semantic scopes with shared metadata (`confidence`, `importance`, `ttl`, `privacy_tag`).
-- Keep deployment parity across cloud, private-local, and mixed provider modes, while using fail-fast provider behavior in phase 1.
+- Phase 1 is complete:
+  - provider abstraction and runtime routing are implemented;
+  - memory orchestration and policy modes are implemented;
+  - retrieval v2 and observability are implemented.
+
+## Next Backend Milestone
+
+- Focus on memory lifecycle quality rather than UI-first expansion.
+- Reduce long-term memory noise with deduplication and retention policies.
+- Add internal/admin-grade memory inspection and management APIs before user-facing frontend controls.
+- Build retrieval evaluation workflows to measure quality regressions before adding rerankers or more advanced policies.
+
+## Deployment Direction
+
+- Keep the product in a single repository.
+- Continue backend development as a modular monolith for now.
+- Prepare runtime boundaries so the system can be deployed as separate Kubernetes workloads later:
+  - backend API pod
+  - frontend pod when UI work starts
+  - PostgreSQL
+  - Redis
+  - optional worker/cron pod for memory maintenance jobs
+  - optional local model-serving pod
+- Avoid early microservice fragmentation inside the backend until operational needs justify it.
 
 ## Agent Workflow
 

@@ -15,6 +15,15 @@ Enable a hybrid memory architecture where the assistant can:
 - No automatic long-term summarization jobs yet.
 - No cross-user shared memory.
 
+## Current status
+
+Phase 1 is complete:
+
+- provider abstraction and runtime routing are in place;
+- memory orchestration supports deterministic rules and optional LLM policy mode;
+- retrieval v2 is live with token-budgeted layered context assembly;
+- observability and deployment/runbook documentation are in place.
+
 ## Proposed target architecture
 
 ### 1) Provider abstraction layer
@@ -113,6 +122,29 @@ And one mixed mode:
 
 - external LLM + local embeddings (or vice versa) for cost/privacy balancing.
 
+### 6) Deployment topology direction
+
+Near-term deployment target:
+
+- keep one repository for backend, future frontend, and infrastructure assets;
+- keep backend as a modular monolith while the product surface is still evolving;
+- package runtime components so they can be deployed independently on Kubernetes.
+
+Target Kubernetes workload split:
+
+- `api` deployment for FastAPI backend;
+- `frontend` deployment when UI work starts;
+- `worker` or `cron` deployment for background memory maintenance jobs;
+- `redis` deployment/service for cache/queue support;
+- PostgreSQL as either managed infrastructure or a stateful workload;
+- optional `model-serving` deployment for local LLM/embedding providers.
+
+Rationale:
+
+- preserves fast iteration in one codebase;
+- supports operational isolation by runtime role;
+- avoids premature backend microservice fragmentation.
+
 ## Rollout plan (incremental)
 
 ### Phase A — Provider abstraction foundation
@@ -139,6 +171,26 @@ And one mixed mode:
 - Tune relevance/importance/recency weights.
 - Exit criteria: improved retrieval usefulness metrics and stable latency.
 
+### Phase E — Memory lifecycle management
+
+- Add deduplication for semantic and episodic memory noise reduction.
+- Introduce TTL and retention policies by memory scope/category.
+- Add maintenance execution model (manual job first, scheduled worker later).
+- Exit criteria: duplicate memory rate drops measurably and expired memory is excluded deterministically.
+
+### Phase F — Internal memory management APIs
+
+- Add internal/admin APIs to inspect, filter, and delete memory by user and scope.
+- Preserve auditability for manual interventions.
+- Keep contracts backend-first so future UI can build on stable endpoints.
+- Exit criteria: operators can inspect and manage stored memory without direct DB access.
+
+### Phase G — Retrieval evaluation and tuning harness
+
+- Add repeatable evaluation scenarios for retrieval usefulness and regression detection.
+- Establish baseline metrics before adding rerankers or more advanced ranking models.
+- Exit criteria: retrieval changes can be gated on explicit evaluation evidence.
+
 ## Risks and mitigations
 
 - **Risk:** model-driven policy over-saves noisy memories.
@@ -147,3 +199,5 @@ And one mixed mode:
   - **Mitigation:** provider-specific scoring calibration and minimum quality checks.
 - **Risk:** privacy leakage via raw storage.
   - **Mitigation:** sensitive detector + explicit `privacy_tag` + retention/TTL policies.
+- **Risk:** backend gets split into too many services too early.
+  - **Mitigation:** keep modular monolith boundaries in code, separate workloads only at deployment/runtime level first.
